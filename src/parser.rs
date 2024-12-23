@@ -81,7 +81,11 @@ pub fn parse(tokens: Vec<Token>) -> Result<Node, String> {
         }
     }
 
-    Ok(Node::Concat(nodes))
+    if nodes.len() == 1 {
+        return Ok(nodes.pop().unwrap());
+    } else {
+        return Ok(Node::Concat(nodes));
+    };
 }
 
 fn parse_char_class(tokens: Vec<Token>) -> Result<Node, String> {
@@ -120,4 +124,27 @@ fn parse_char_class(tokens: Vec<Token>) -> Result<Node, String> {
         }
     }
     Ok(Node::CharClass(chars))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::lex;
+
+    #[test]
+    fn test_parse() {
+        assert_eq!(parse(lex("a").unwrap()), Ok(Node::Literal('a')));
+        assert_eq!(
+            parse(lex("ab").unwrap()),
+            Ok(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')]))
+        );
+        assert_eq!(
+            parse(lex("[abc]").unwrap()),
+            Ok(Node::CharClass(vec!['a', 'b', 'c']))
+        );
+        assert_eq!(
+            parse(lex("[a-c]").unwrap()),
+            Ok(Node::CharClass(vec!['a', 'b', 'c']))
+        );
+    }
 }
