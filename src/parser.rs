@@ -139,6 +139,30 @@ mod tests {
             Ok(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')]))
         );
         assert_eq!(
+            parse(lex("a*").unwrap()),
+            Ok(Node::ZeroOrMore(Box::new(Node::Literal('a'))))
+        );
+        assert_eq!(
+            parse(lex("a+").unwrap()),
+            Ok(Node::OneOrMore(Box::new(Node::Literal('a'))))
+        );
+        assert_eq!(
+            parse(lex("a?").unwrap()),
+            Ok(Node::ZeroOrOne(Box::new(Node::Literal('a'))))
+        );
+        assert_eq!(
+            parse(lex("a*b").unwrap()),
+            Ok(Node::Concat(vec![
+                Node::ZeroOrMore(Box::new(Node::Literal('a'))),
+                Node::Literal('b')
+            ]))
+        );
+        assert_eq!(parse(lex(".").unwrap()), Ok(Node::AnyChar));
+        assert_eq!(
+            parse(lex(".*").unwrap()),
+            Ok(Node::ZeroOrMore(Box::new(Node::AnyChar)))
+        );
+        assert_eq!(
             parse(lex("[abc]").unwrap()),
             Ok(Node::CharClass(vec!['a', 'b', 'c']))
         );
