@@ -170,5 +170,13 @@ mod tests {
             parse(lex("[a-c]").unwrap()),
             Ok(Node::CharClass(vec!['a', 'b', 'c']))
         );
+        assert_eq!(
+            parse(lex("([a-c])").unwrap()),
+            Ok(Node::Group(Box::new(Node::CharClass(vec!['a', 'b', 'c']))))
+        );
+        assert_eq!(
+            parse(lex("[(a-c)]").unwrap()),
+            Err("Unexpected token: LeftParen".to_string())
+        );
     }
 }
