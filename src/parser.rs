@@ -1,5 +1,3 @@
-use std::iter::Peekable;
-
 use crate::lexer::Token;
 
 #[derive(Debug, Eq, PartialEq)]
