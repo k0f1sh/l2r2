@@ -11,6 +11,12 @@ fn main() {
     let nfa = build_nfa(Node::Literal('a')).unwrap();
     println!("{:#?}", nfa);
 
-    let result = match_nfa(nfa, "ab");
-    println!("result: {}", result);
+    let result = match_nfa(&nfa, "a");
+    println!("input: a, result: {}", result);
+
+    let result = match_nfa(&nfa, "ab");
+    println!("input: ab, result: {}", result);
+
+    let result = match_nfa(&nfa, "ba");
+    println!("input: ba, result: {}", result);
 }

@@ -91,7 +91,7 @@ pub fn build_nfa(node: Node) -> Result<NFA, String> {
     Ok(nfa)
 }
 
-pub fn match_nfa(nfa: NFA, input: &str) -> bool {
+pub fn match_nfa(nfa: &NFA, input: &str) -> bool {
     let mut it = input.chars().peekable();
     let mut current_states = HashSet::new();
     current_states.insert(nfa.start_state);
@@ -112,8 +112,12 @@ pub fn match_nfa(nfa: NFA, input: &str) -> bool {
                         }
                     }
                 }
+
+                if next_states.is_empty() {
+                    break;
+                }
                 // TODO Epsilon closure
-                current_states.extend(next_states);
+                current_states = next_states;
             }
             None => break,
         }
