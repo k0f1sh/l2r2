@@ -11,10 +11,5 @@ fn main() {
 
     let l = lex("a|b").unwrap();
     let p = parse(l).unwrap();
-
-    let nfa = build_nfa(Node::Literal('a')).unwrap();
-    println!("{:#?}", nfa);
-
-    let result = match_nfa(&nfa, "a|b");
-    println!("input: ba, result: {}", result);
+    println!("{:#?}", p)
 }

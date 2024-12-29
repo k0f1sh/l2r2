@@ -1,3 +1,5 @@
+use std::iter::Peekable;
+
 use crate::lexer::Token;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -15,107 +17,104 @@ pub enum Node {
 
 pub fn parse(tokens: Vec<Token>) -> Result<Node, String> {
     let mut tokens = tokens.into_iter().peekable();
-    let mut nodes = Vec::new();
-    while tokens.peek().is_some() {
-        let token = tokens.next().unwrap();
+    parse_expr(&mut tokens)
+}
+
+fn parse_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node, String> {
+    let mut left = parse_term(tokens)?;
+
+    while let Some(token) = tokens.peek() {
         match token {
-            Token::Literal(c) => nodes.push(Node::Literal(c)),
-            Token::Star => {
-                let prev = nodes
-                    .pop()
-                    .ok_or(format!("Unexpected token: {:?}", token))?;
-                nodes.push(Node::ZeroOrMore(Box::new(prev)));
-            }
             Token::Pipe => {
-                let prev = nodes
-                    .pop()
-                    .ok_or(format!("Unexpected token: {:?}", token))?;
+                tokens.next();
+                let right = parse_term(tokens)?;
+                left = Node::Union(Box::new(left), Box::new(right));
+            }
+            _ => break,
+        }
+    }
 
-                let after = parse(tokens.clone().collect())?;
+    Ok(left)
+}
 
-                // to empty tokens
-                while tokens.peek().is_some() {
-                    tokens.next();
-                }
-
-                match after {
-                    Node::Concat(mut after_nodes) => {
-                        let first = after_nodes.pop().ok_or(format!("Unexpected token"))?;
-                        nodes.push(Node::Union(Box::new(prev), Box::new(first)));
-
-                        // concatの中身を詰め直す
-                        nodes.extend(after_nodes);
-                        return Ok(Node::Concat(nodes));
-                    }
-                    _ => {
-                        nodes.push(Node::Union(Box::new(prev), Box::new(after)));
-                    }
-                }
+fn parse_term(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node, String> {
+    let mut nodes = Vec::new();
+    while let Some(token) = tokens.peek() {
+        match token {
+            Token::Literal(_) | Token::Dot | Token::LeftParen | Token::LeftBracket => {
+                nodes.push(parse_factor(tokens)?);
             }
-            Token::Plus => {
-                let prev = nodes
-                    .pop()
-                    .ok_or(format!("Unexpected token: {:?}", token))?;
-                nodes.push(Node::OneOrMore(Box::new(prev)));
+            Token::Pipe | Token::RightParen => {
+                break;
             }
-            Token::Question => {
-                let prev = nodes
-                    .pop()
-                    .ok_or(format!("Unexpected token: {:?}", token))?;
-                nodes.push(Node::ZeroOrOne(Box::new(prev)));
+            _ => {
+                return Err(format!("Unexpected token: {:?}", token));
             }
-            Token::Dot => nodes.push(Node::AnyChar),
-            Token::LeftParen => {
-                // take all tokens until right paren
-                let mut reached_right_paren = false;
-                let mut sub_tokens = Vec::new();
-                while tokens.peek().is_some() {
-                    let token = tokens.next().unwrap();
-                    if token == Token::LeftParen {
-                        return Err(format!("Nested groups are not allowed"));
-                    }
-                    if token == Token::RightParen {
-                        reached_right_paren = true;
-                        break;
-                    }
-                    sub_tokens.push(token);
-                }
-                if !reached_right_paren {
-                    return Err(format!("Unclosed group"));
-                }
-                nodes.push(Node::Group(Box::new(parse(sub_tokens)?)))
-            }
-            Token::LeftBracket => {
-                // take all tokens until right paren
-                let mut reached_right_bracket = false;
-                let mut sub_tokens = Vec::new();
-                while tokens.peek().is_some() {
-                    let token = tokens.next().unwrap();
-                    if token == Token::RightBracket {
-                        reached_right_bracket = true;
-                        break;
-                    }
-                    sub_tokens.push(token);
-                }
-                if !reached_right_bracket {
-                    return Err(format!("Unclosed char class"));
-                }
-                nodes.push(parse_char_class(sub_tokens)?)
-            }
-            _ => return Err(format!("Unexpected token: {:?}", token)),
         }
     }
 
     if nodes.len() == 1 {
-        return Ok(nodes.pop().unwrap());
+        Ok(nodes.pop().unwrap())
     } else {
-        return Ok(Node::Concat(nodes));
-    };
+        Ok(Node::Concat(nodes))
+    }
 }
 
-fn parse_char_class(tokens: Vec<Token>) -> Result<Node, String> {
+fn parse_factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node, String> {
+    let token = tokens.next().unwrap();
+    let node = match token {
+        Token::Literal(c) => Ok(Node::Literal(c)),
+        Token::Dot => Ok(Node::AnyChar),
+        Token::LeftParen => {
+            let expr = parse_expr(tokens)?;
+            if let Some(Token::RightParen) = tokens.next() {
+                Ok(Node::Group(Box::new(expr)))
+            } else {
+                Err(format!("Unclosed group"))
+            }
+        }
+        Token::LeftBracket => {
+            let expr = parse_char_class(tokens)?;
+            if let Some(Token::RightBracket) = tokens.next() {
+                Ok(expr)
+            } else {
+                Err(format!("Unclosed char class"))
+            }
+        }
+        _ => Err(format!("Unexpected token: {:?}", token)),
+    }?;
+
+    if let Some(_) = tokens.peek() {
+        parse_repetition(tokens, node)
+    } else {
+        Ok(node)
+    }
+}
+
+fn parse_repetition(
+    tokens: &mut Peekable<impl Iterator<Item = Token>>,
+    node: Node,
+) -> Result<Node, String> {
+    let token = tokens.peek().unwrap();
+    match token {
+        Token::Star => {
+            tokens.next();
+            Ok(Node::ZeroOrMore(Box::new(node)))
+        }
+        Token::Plus => {
+            tokens.next();
+            Ok(Node::OneOrMore(Box::new(node)))
+        }
+        Token::Question => {
+            tokens.next();
+            Ok(Node::ZeroOrOne(Box::new(node)))
+        }
+        _ => Ok(node),
+    }
+}
+
+fn parse_char_class(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node, String> {
     let mut chars = Vec::new();
-    let mut tokens = tokens.into_iter().peekable();
     while tokens.peek().is_some() {
         let token = tokens.next().unwrap();
         match token {
