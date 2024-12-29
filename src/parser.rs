@@ -216,14 +216,17 @@ mod tests {
                 Box::new(Node::Group(Box::new(Node::CharClass(vec!['a', 'b', 'c']))))
             ))
         );
-        //assert_eq!(
-        //    parse(lex("abc|d").unwrap()),
-        //    Ok(Node::Concat(vec![
-        //        Node::Literal('a'),
-        //        Node::Literal('b'),
-        //        Node::Union(Box::new(Node::Literal('c')), Box::new(Node::Literal('d')))
-        //    ]))
-        //);
+        assert_eq!(
+            parse(lex("abc|d").unwrap()),
+            Ok(Node::Union(
+                Box::new(Node::Concat(vec![
+                    Node::Literal('a'),
+                    Node::Literal('b'),
+                    Node::Literal('c')
+                ])),
+                Box::new(Node::Literal('d'))
+            ))
+        );
         assert_eq!(
             parse(lex("(ab)*").unwrap()),
             Ok(Node::ZeroOrMore(Box::new(Node::Group(Box::new(
