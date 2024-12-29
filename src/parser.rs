@@ -5,6 +5,7 @@ pub enum Node {
     Literal(char),
     AnyChar,
     CharClass(Vec<char>),
+    Union(Box<Node>, Box<Node>),
     ZeroOrMore(Box<Node>),
     OneOrMore(Box<Node>),
     ZeroOrOne(Box<Node>),
@@ -24,6 +25,32 @@ pub fn parse(tokens: Vec<Token>) -> Result<Node, String> {
                     .pop()
                     .ok_or(format!("Unexpected token: {:?}", token))?;
                 nodes.push(Node::ZeroOrMore(Box::new(prev)));
+            }
+            Token::Pipe => {
+                let prev = nodes
+                    .pop()
+                    .ok_or(format!("Unexpected token: {:?}", token))?;
+
+                let after = parse(tokens.clone().collect())?;
+
+                // to empty tokens
+                while tokens.peek().is_some() {
+                    tokens.next();
+                }
+
+                match after {
+                    Node::Concat(mut after_nodes) => {
+                        let first = after_nodes.pop().ok_or(format!("Unexpected token"))?;
+                        nodes.push(Node::Union(Box::new(prev), Box::new(first)));
+
+                        // concatの中身を詰め直す
+                        nodes.extend(after_nodes);
+                        return Ok(Node::Concat(nodes));
+                    }
+                    _ => {
+                        nodes.push(Node::Union(Box::new(prev), Box::new(after)));
+                    }
+                }
             }
             Token::Plus => {
                 let prev = nodes
@@ -159,6 +186,45 @@ mod tests {
         assert_eq!(
             parse(lex(".*").unwrap()),
             Ok(Node::ZeroOrMore(Box::new(Node::AnyChar)))
+        );
+        assert_eq!(
+            parse(lex("a|b").unwrap()),
+            Ok(Node::Union(
+                Box::new(Node::Literal('a')),
+                Box::new(Node::Literal('b'))
+            ))
+        );
+        assert_eq!(
+            parse(lex("a|b|c").unwrap()),
+            Ok(Node::Union(
+                Box::new(Node::Literal('a')),
+                Box::new(Node::Union(
+                    Box::new(Node::Literal('b')),
+                    Box::new(Node::Literal('c'))
+                ))
+            ))
+        );
+        assert_eq!(
+            parse(lex("a*|b").unwrap()),
+            Ok(Node::Union(
+                Box::new(Node::ZeroOrMore(Box::new(Node::Literal('a')))),
+                Box::new(Node::Literal('b'))
+            ))
+        );
+        assert_eq!(
+            parse(lex("a|([a-c])").unwrap()),
+            Ok(Node::Union(
+                Box::new(Node::Literal('a')),
+                Box::new(Node::Group(Box::new(Node::CharClass(vec!['a', 'b', 'c']))))
+            ))
+        );
+        assert_eq!(
+            parse(lex("abc|d").unwrap()),
+            Ok(Node::Concat(vec![
+                Node::Literal('a'),
+                Node::Literal('b'),
+                Node::Union(Box::new(Node::Literal('c')), Box::new(Node::Literal('d')))
+            ]))
         );
         assert_eq!(
             parse(lex("(ab)*").unwrap()),

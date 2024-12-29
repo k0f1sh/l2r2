@@ -1,4 +1,4 @@
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
     Literal(char), // single character
     Star,          // *
@@ -6,6 +6,7 @@ pub enum Token {
     Question,      // ?
     Dot,           // .
     Hyphen,        // -
+    Pipe,          // |
     LeftParen,     // (
     RightParen,    // )
     LeftBracket,   // [
@@ -23,6 +24,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             '?' => tokens.push(Token::Question),
             '.' => tokens.push(Token::Dot),
             '-' => tokens.push(Token::Hyphen),
+            '|' => tokens.push(Token::Pipe),
             '(' => tokens.push(Token::LeftParen),
             ')' => tokens.push(Token::RightParen),
             '[' => tokens.push(Token::LeftBracket),
@@ -82,6 +84,10 @@ mod tests {
         assert_eq!(
             lex(" a-z ").unwrap(),
             vec![Token::Literal('a'), Token::Hyphen, Token::Literal('z')]
+        );
+        assert_eq!(
+            lex("a|b").unwrap(),
+            vec![Token::Literal('a'), Token::Pipe, Token::Literal('b')]
         );
     }
 }
