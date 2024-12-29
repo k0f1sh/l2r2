@@ -9,7 +9,7 @@ use parser::{parse, Node};
 fn main() {
     println!("Hello, world!");
 
-    let l = lex("a|b").unwrap();
+    let l = lex("a|([a-c])").unwrap();
     let p = parse(l).unwrap();
     println!("{:#?}", p)
 }
