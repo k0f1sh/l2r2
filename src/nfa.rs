@@ -68,12 +68,14 @@ fn _match_nfa(
         println!("current_state_id: {}", current_state_id);
         println!("current_char: {}", c);
 
+        // check transition
         let next_states = nfa
             .states
             .get(&current_state_id)
             .and_then(|state| state.transitions.get(c));
 
         if next_states.is_none() {
+            // if no transition, skip current char
             input.next();
             return _match_nfa(nfa, current_state_id, input);
         }
@@ -84,6 +86,7 @@ fn _match_nfa(
             if next_state.is_accept {
                 return Ok(MatchResult::MatchAccept);
             } else {
+                // if not accept, try next state
                 input.next();
                 let result = _match_nfa(nfa, next_state_id.clone(), input)?;
                 match result {
