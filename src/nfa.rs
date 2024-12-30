@@ -43,7 +43,14 @@ pub fn build_nfa(node: Node) -> NFA {
 }
 
 pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
-    let result = _match_nfa(nfa, nfa.start_id, &mut input.chars().peekable())?;
+    let result = _match_nfa(
+        nfa,
+        nfa.start_id,
+        &mut InputWithIndex {
+            index: 0,
+            input: input.to_string(),
+        },
+    )?;
     match result {
         MatchResult::Match => Ok(true),
         MatchResult::NoMatch => Ok(false),
@@ -56,10 +63,29 @@ enum MatchResult {
     NoMatch,
 }
 
+struct InputWithIndex {
+    index: usize,
+    input: String,
+}
+
+impl InputWithIndex {
+    fn next(&mut self) -> Option<char> {
+        let result = self.input.chars().nth(self.index);
+        self.index += 1;
+        result
+    }
+    fn peek(&self) -> Option<char> {
+        self.input.chars().nth(self.index)
+    }
+    fn set_index(&mut self, index: usize) {
+        self.index = index;
+    }
+}
+
 fn _match_nfa(
     nfa: &NFA,
     current_state_id: usize,
-    input: &mut Peekable<impl Iterator<Item = char>>,
+    input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
     if let Some(c) = input.peek() {
         // TODO: epsilon transition
@@ -71,7 +97,7 @@ fn _match_nfa(
         let next_states = nfa
             .states
             .get(&current_state_id)
-            .and_then(|state| state.transitions.get(c));
+            .and_then(|state| state.transitions.get(&c));
 
         if next_states.is_none() {
             // if no transition, skip current char
@@ -80,18 +106,22 @@ fn _match_nfa(
         }
 
         for next_state_id in next_states.unwrap() {
-            // check state is accept
             let next_state = nfa.states.get(&next_state_id).unwrap();
+            // check state is accept
             if next_state.is_accept {
                 return Ok(MatchResult::Match);
             } else {
                 // if not accept, try next state
+                let current_index = input.index;
                 input.next();
                 let result = _match_nfa(nfa, next_state_id.clone(), input)?;
                 match result {
                     MatchResult::Match => return Ok(MatchResult::Match),
-                    MatchResult::NoMatch => continue,
-                    _ => return Err("Invalid match result".to_string()),
+                    MatchResult::NoMatch => {
+                        // if no match, reset index
+                        input.set_index(current_index);
+                        continue;
+                    }
                 }
             }
         }
