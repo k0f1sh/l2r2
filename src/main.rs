@@ -3,13 +3,14 @@ mod nfa;
 mod parser;
 
 use lexer::lex;
-use nfa::{build_nfa, match_nfa};
-use parser::{parse, Node};
+use nfa::build_nfa;
+use parser::parse;
 
 fn main() {
     println!("Hello, world!");
 
     let l = lex("a|([a-c])").unwrap();
     let p = parse(l).unwrap();
-    println!("{:#?}", p)
+    let nfa = build_nfa(p);
+    println!("{:#?}", nfa)
 }
