@@ -33,16 +33,13 @@ pub struct NFA {
 pub fn build_nfa(node: Node) -> NFA {
     // TODO: This is just an example
     let start_id = 0;
-    let q0 = State::new(
-        start_id,
-        HashMap::from([(Some('a'), HashSet::from([1]))]),
-        false,
-    );
-    let q1 = State::new(1, HashMap::from([(Some('b'), HashSet::from([2]))]), false);
-    let q2 = State::new(2, HashMap::new(), true);
+    let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
+    let q1 = State::new(1, HashMap::from([(Some('a'), HashSet::from([2]))]), false);
+    let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+    let q3 = State::new(3, HashMap::new(), true);
 
     // TODO: use function to build states
-    let states = HashMap::from([(q0.id, q0), (q1.id, q1), (q2.id, q2)]);
+    let states = HashMap::from([(q0.id, q0), (q1.id, q1), (q2.id, q2), (q3.id, q3)]);
     NFA { start_id, states }
 }
 
@@ -67,6 +64,7 @@ enum MatchResult {
     NoMatch,
 }
 
+#[derive(Debug)]
 struct InputWithIndex {
     index: usize,
     input: String,
@@ -94,6 +92,8 @@ fn _match_nfa(
     current_state_id: usize,
     input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
+    println!("input: {:#?}", input);
+    println!("current_state_id: {}", current_state_id);
     if input.is_end() {
         let closure = epsilon_closure(nfa, current_state_id)?;
         for state_id in closure {
@@ -105,9 +105,6 @@ fn _match_nfa(
     }
 
     if let Some(c) = input.peek() {
-        println!("current_state_id: {}", current_state_id);
-        println!("current_char: {}", c);
-
         // check transition
         let _next_states = nfa
             .states
@@ -117,11 +114,14 @@ fn _match_nfa(
         // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
 
-        let next_states: HashSet<usize> = _next_states
+        let mut next_states: HashSet<usize> = _next_states
             .unwrap_or(&HashSet::new())
             .union(&closure)
             .cloned()
             .collect();
+        // FIXME: Is this correct?
+        // remove current_state_id (for epsilon transition)
+        next_states.remove(&current_state_id);
 
         if next_states.is_empty() {
             // if no transition, skip current char
