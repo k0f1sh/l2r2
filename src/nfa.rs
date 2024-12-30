@@ -92,6 +92,7 @@ fn _match_nfa(
     current_state_id: usize,
     input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
+    println!("--- _match_nfa ---");
     println!("input: {:#?}", input);
     println!("current_state_id: {}", current_state_id);
     if input.is_end() {

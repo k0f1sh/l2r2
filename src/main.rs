@@ -14,6 +14,9 @@ fn main() {
 
     // 未実装のためpは関係ない
     let nfa = build_nfa(p);
+    println!("--- nfa ---");
+    println!("{:#?}", nfa);
     let result = match_nfa(&nfa, "bab");
+    println!("--- result ---");
     println!("{:#?}", result);
 }
