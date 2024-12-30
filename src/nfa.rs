@@ -1,19 +1,21 @@
-use std::{
-    collections::{HashMap, HashSet},
-    iter::Peekable,
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::parser::Node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     id: usize,
-    transitions: HashMap<char, HashSet<usize>>,
+    // if None, epsilon transition
+    transitions: HashMap<Option<char>, HashSet<usize>>,
     is_accept: bool, // このステートが受理状態かどうか
 }
 
 impl State {
-    pub fn new(id: usize, transitions: HashMap<char, HashSet<usize>>, is_accept: bool) -> Self {
+    pub fn new(
+        id: usize,
+        transitions: HashMap<Option<char>, HashSet<usize>>,
+        is_accept: bool,
+    ) -> Self {
         Self {
             id,
             transitions,
@@ -28,13 +30,15 @@ pub struct NFA {
     states: HashMap<usize, State>,
 }
 
-impl NFA {}
-
 pub fn build_nfa(node: Node) -> NFA {
     // TODO: This is just an example
     let start_id = 0;
-    let q0 = State::new(start_id, HashMap::from([('a', HashSet::from([1]))]), false);
-    let q1 = State::new(1, HashMap::from([('b', HashSet::from([2]))]), false);
+    let q0 = State::new(
+        start_id,
+        HashMap::from([(Some('a'), HashSet::from([1]))]),
+        false,
+    );
+    let q1 = State::new(1, HashMap::from([(Some('b'), HashSet::from([2]))]), false);
     let q2 = State::new(2, HashMap::new(), true);
 
     // TODO: use function to build states
@@ -80,6 +84,9 @@ impl InputWithIndex {
     fn set_index(&mut self, index: usize) {
         self.index = index;
     }
+    fn is_end(&self) -> bool {
+        self.index >= self.input.len()
+    }
 }
 
 fn _match_nfa(
@@ -87,25 +94,42 @@ fn _match_nfa(
     current_state_id: usize,
     input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
+    if input.is_end() {
+        let closure = epsilon_closure(nfa, current_state_id)?;
+        for state_id in closure {
+            if nfa.states.get(&state_id).unwrap().is_accept {
+                return Ok(MatchResult::Match);
+            }
+        }
+        return Ok(MatchResult::NoMatch);
+    }
+
     if let Some(c) = input.peek() {
-        // TODO: epsilon transition
-        //
         println!("current_state_id: {}", current_state_id);
         println!("current_char: {}", c);
 
         // check transition
-        let next_states = nfa
+        let _next_states = nfa
             .states
             .get(&current_state_id)
-            .and_then(|state| state.transitions.get(&c));
+            .and_then(|state| state.transitions.get(&Some(c)));
 
-        if next_states.is_none() {
+        // check epsilon transition
+        let closure = epsilon_closure(nfa, current_state_id)?;
+
+        let next_states: HashSet<usize> = _next_states
+            .unwrap_or(&HashSet::new())
+            .union(&closure)
+            .cloned()
+            .collect();
+
+        if next_states.is_empty() {
             // if no transition, skip current char
             input.next();
             return _match_nfa(nfa, current_state_id, input);
         }
 
-        for next_state_id in next_states.unwrap() {
+        for next_state_id in next_states {
             let next_state = nfa.states.get(&next_state_id).unwrap();
             // check state is accept
             if next_state.is_accept {
@@ -127,4 +151,29 @@ fn _match_nfa(
         }
     }
     Ok(MatchResult::NoMatch)
+}
+
+fn epsilon_closure(nfa: &NFA, current_state_id: usize) -> Result<HashSet<usize>, String> {
+    _epsilon_closure(nfa, current_state_id, &mut HashSet::new())
+}
+
+fn _epsilon_closure(
+    nfa: &NFA,
+    current_state_id: usize,
+    visited: &mut HashSet<usize>,
+) -> Result<HashSet<usize>, String> {
+    visited.insert(current_state_id);
+    let mut closure = HashSet::from([current_state_id]);
+
+    let current_state = nfa.states.get(&current_state_id).unwrap();
+    let binding = HashSet::new();
+    let epsilon_states = current_state.transitions.get(&None).unwrap_or(&binding);
+    for next_state_id in epsilon_states {
+        if visited.contains(&next_state_id) {
+            continue;
+        }
+        let result = _epsilon_closure(nfa, next_state_id.clone(), visited)?;
+        closure.extend(result);
+    }
+    Ok(closure)
 }
