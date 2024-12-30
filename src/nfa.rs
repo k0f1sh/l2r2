@@ -45,15 +45,14 @@ pub fn build_nfa(node: Node) -> NFA {
 pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
     let result = _match_nfa(nfa, nfa.start_id, &mut input.chars().peekable())?;
     match result {
-        MatchResult::MatchAccept => Ok(true),
+        MatchResult::Match => Ok(true),
         MatchResult::NoMatch => Ok(false),
-        _ => Err("Invalid match result".to_string()),
     }
 }
 
+// TODO: boolでいいかも
 enum MatchResult {
-    Match { next_state_id: usize },
-    MatchAccept,
+    Match,
     NoMatch,
 }
 
@@ -84,13 +83,13 @@ fn _match_nfa(
             // check state is accept
             let next_state = nfa.states.get(&next_state_id).unwrap();
             if next_state.is_accept {
-                return Ok(MatchResult::MatchAccept);
+                return Ok(MatchResult::Match);
             } else {
                 // if not accept, try next state
                 input.next();
                 let result = _match_nfa(nfa, next_state_id.clone(), input)?;
                 match result {
-                    MatchResult::MatchAccept => return Ok(MatchResult::MatchAccept),
+                    MatchResult::Match => return Ok(MatchResult::Match),
                     MatchResult::NoMatch => continue,
                     _ => return Err("Invalid match result".to_string()),
                 }
