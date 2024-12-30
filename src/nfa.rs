@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::Peekable,
+};
 
 use crate::parser::Node;
 
@@ -30,11 +33,66 @@ impl NFA {}
 pub fn build_nfa(node: Node) -> NFA {
     // TODO: This is just an example
     let start_id = 0;
-    let s0 = State::new(start_id, HashMap::from([('a', HashSet::from([1]))]), false);
-    let s1 = State::new(1, HashMap::from([('b', HashSet::from([2]))]), false);
-    let s2 = State::new(2, HashMap::new(), true);
+    let q0 = State::new(start_id, HashMap::from([('a', HashSet::from([1]))]), false);
+    let q1 = State::new(1, HashMap::from([('b', HashSet::from([2]))]), false);
+    let q2 = State::new(2, HashMap::new(), true);
 
     // TODO: use function to build states
-    let states = HashMap::from([(s0.id, s0), (s1.id, s1), (s2.id, s2)]);
+    let states = HashMap::from([(q0.id, q0), (q1.id, q1), (q2.id, q2)]);
     NFA { start_id, states }
+}
+
+pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
+    let result = _match_nfa(nfa, nfa.start_id, &mut input.chars().peekable())?;
+    match result {
+        MatchResult::MatchAccept => Ok(true),
+        MatchResult::NoMatch => Ok(false),
+        _ => Err("Invalid match result".to_string()),
+    }
+}
+
+enum MatchResult {
+    Match { next_state_id: usize },
+    MatchAccept,
+    NoMatch,
+}
+
+fn _match_nfa(
+    nfa: &NFA,
+    current_state_id: usize,
+    input: &mut Peekable<impl Iterator<Item = char>>,
+) -> Result<MatchResult, String> {
+    if let Some(c) = input.peek() {
+        // TODO: epsilon transition
+        //
+        println!("current_state_id: {}", current_state_id);
+        println!("current_char: {}", c);
+
+        let next_states = nfa
+            .states
+            .get(&current_state_id)
+            .and_then(|state| state.transitions.get(c));
+
+        if next_states.is_none() {
+            input.next();
+            return _match_nfa(nfa, current_state_id, input);
+        }
+
+        for next_state_id in next_states.unwrap() {
+            // check state is accept
+            let next_state = nfa.states.get(&next_state_id).unwrap();
+            if next_state.is_accept {
+                return Ok(MatchResult::MatchAccept);
+            } else {
+                input.next();
+                let result = _match_nfa(nfa, next_state_id.clone(), input)?;
+                match result {
+                    MatchResult::MatchAccept => return Ok(MatchResult::MatchAccept),
+                    MatchResult::NoMatch => continue,
+                    _ => return Err("Invalid match result".to_string()),
+                }
+            }
+        }
+    }
+    Ok(MatchResult::NoMatch)
 }
