@@ -38,9 +38,16 @@ pub fn build_nfa(node: Node) -> NFA {
     let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
     let q3 = State::new(3, HashMap::new(), true);
 
-    // TODO: use function to build states
-    let states = HashMap::from([(q0.id, q0), (q1.id, q1), (q2.id, q2), (q3.id, q3)]);
+    let states = build_states(vec![q0, q1, q2, q3]);
     NFA { start_id, states }
+}
+
+fn build_states(states: Vec<State>) -> HashMap<usize, State> {
+    let mut map = HashMap::new();
+    for state in states {
+        map.insert(state.id, state);
+    }
+    map
 }
 
 pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
@@ -115,14 +122,11 @@ fn _match_nfa(
         // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
 
-        let mut next_states: HashSet<usize> = _next_states
+        let next_states: HashSet<usize> = _next_states
             .unwrap_or(&HashSet::new())
             .union(&closure)
             .cloned()
             .collect();
-        // FIXME: Is this correct?
-        // remove current_state_id (for epsilon transition)
-        next_states.remove(&current_state_id);
 
         if next_states.is_empty() {
             // if no transition, skip current char
@@ -155,17 +159,16 @@ fn _match_nfa(
 }
 
 fn epsilon_closure(nfa: &NFA, current_state_id: usize) -> Result<HashSet<usize>, String> {
-    _epsilon_closure(nfa, current_state_id, &mut HashSet::new())
+    let mut visited = HashSet::new();
+    _epsilon_closure(nfa, current_state_id, &mut visited)?;
+    Ok(visited)
 }
 
 fn _epsilon_closure(
     nfa: &NFA,
     current_state_id: usize,
     visited: &mut HashSet<usize>,
-) -> Result<HashSet<usize>, String> {
-    visited.insert(current_state_id);
-    let mut closure = HashSet::from([current_state_id]);
-
+) -> Result<(), String> {
     let current_state = nfa.states.get(&current_state_id).unwrap();
     let binding = HashSet::new();
     let epsilon_states = current_state.transitions.get(&None).unwrap_or(&binding);
@@ -173,8 +176,75 @@ fn _epsilon_closure(
         if visited.contains(&next_state_id) {
             continue;
         }
-        let result = _epsilon_closure(nfa, next_state_id.clone(), visited)?;
-        closure.extend(result);
+        visited.insert(next_state_id.clone());
+        _epsilon_closure(nfa, next_state_id.clone(), visited)?;
     }
-    Ok(closure)
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_epsilon_closure() {
+        let start_id = 0;
+
+        // 0 -> 1 -> 2 -> 3
+        let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
+        let q1 = State::new(1, HashMap::from([(Some('a'), HashSet::from([2]))]), false);
+        let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+        let q3 = State::new(3, HashMap::new(), true);
+        let states = build_states(vec![q0, q1, q2, q3]);
+
+        let nfa = NFA { start_id, states };
+        let result = epsilon_closure(&nfa, 0);
+        assert_eq!(result, Ok(HashSet::from([1])));
+
+        //      <---
+        //      |  |
+        // 0 -> 1 ->-> 2 -> 3
+        let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
+        let q1 = State::new(
+            1,
+            HashMap::from([(Some('a'), HashSet::from([2])), (None, HashSet::from([1]))]),
+            false,
+        );
+        let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+        let q3 = State::new(3, HashMap::new(), true);
+        let states = build_states(vec![q0, q1, q2, q3]);
+        let nfa = NFA { start_id, states };
+
+        let result = epsilon_closure(&nfa, 0);
+        assert_eq!(result, Ok(HashSet::from([1])));
+
+        let result = epsilon_closure(&nfa, 1);
+        assert_eq!(result, Ok(HashSet::from([1])));
+
+        let result = epsilon_closure(&nfa, 2);
+        assert_eq!(result, Ok(HashSet::from([])));
+
+        let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
+        let q1 = State::new(
+            1,
+            HashMap::from([
+                (Some('a'), HashSet::from([2])),
+                (None, HashSet::from([0, 1])),
+            ]),
+            false,
+        );
+        let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+        let q3 = State::new(3, HashMap::new(), true);
+        let states = build_states(vec![q0, q1, q2, q3]);
+        let nfa = NFA { start_id, states };
+
+        let result = epsilon_closure(&nfa, 0);
+        assert_eq!(result, Ok(HashSet::from([0, 1])));
+
+        let result = epsilon_closure(&nfa, 1);
+        assert_eq!(result, Ok(HashSet::from([0, 1])));
+
+        let result = epsilon_closure(&nfa, 2);
+        assert_eq!(result, Ok(HashSet::from([])));
+    }
 }
