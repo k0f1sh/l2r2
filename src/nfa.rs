@@ -388,6 +388,7 @@ fn _epsilon_closure(
 }
 
 impl NFA {
+    #[allow(dead_code)]
     pub fn to_dot(&self) -> String {
         format!(
             "digraph finite_state_machine {{\n{}\n}}",
