@@ -91,6 +91,11 @@ fn _build_nfa(
             states.extend(added_states);
             end_id = _end_id;
         }
+        Node::ZeroOrMore(node) => {
+            let (added_states, _, _end_id) = build_zero_or_more(id_generator, &mut start, node)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -202,6 +207,40 @@ fn build_concat(
     last_end_state.is_accept = true;
 
     Ok((states, start_id, prev_end_id))
+}
+
+fn build_zero_or_more(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    node: Box<Node>,
+) -> Result<(Vec<State>, usize, usize), String> {
+    // start is not accept
+    start.is_accept = false;
+
+    let mut end_state = generate_state(id_generator, true);
+    let (mut added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
+
+    // start -> first_state
+    start.add_transition(None, _first_id);
+    start.add_transition(None, end_state.id);
+
+    // end_state -> first_state
+    end_state.add_transition(None, _first_id);
+
+    // _end_state -> end_state
+    let _end_state = added_states
+        .iter_mut()
+        .find(|state| state.id == _end_id)
+        .unwrap();
+    _end_state.add_transition(None, end_state.id);
+    _end_state.add_transition(None, _first_id);
+    _end_state.is_accept = false;
+
+    let end_id = end_state.id;
+    let mut states = vec![end_state];
+    states.extend(added_states);
+
+    Ok((states, start.id, end_id))
 }
 
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {

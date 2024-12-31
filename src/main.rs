@@ -21,6 +21,8 @@ fn main() {
     let p = parse(l).unwrap();
     let nfa = build_nfa(p).unwrap();
 
+    println!("nfa: {:#?}", nfa);
+
     let stdin = io::stdin();
     let handle = stdin.lock();
     let lines = handle.lines();
