@@ -9,8 +9,9 @@ use parser::parse;
 fn main() {
     println!("Hello, world!");
 
-    let input = "c";
+    let input = "a";
 
+    //let l = lex("a|b").unwrap();
     let l = lex("a|b").unwrap();
     let p = parse(l).unwrap();
     println!("--- parse ---");

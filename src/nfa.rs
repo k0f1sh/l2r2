@@ -23,8 +23,11 @@ impl State {
         }
     }
 
-    fn get_id(&self) -> usize {
-        self.id
+    fn add_transition(&mut self, c: Option<char>, state_id: usize) {
+        self.transitions
+            .entry(c)
+            .or_insert(HashSet::new())
+            .insert(state_id);
     }
 }
 
@@ -58,25 +61,35 @@ fn generate_state(id_generator: &mut IDGenerator, is_accept: bool) -> State {
 
 pub fn build_nfa(node: Node) -> Result<NFA, String> {
     let mut id_generator = IDGenerator::new();
-    let (states, _) = _build_nfa(node, &mut id_generator)?;
+    let (states, _, _) = _build_nfa(node, &mut id_generator)?;
     Ok(NFA {
         start_id: 0,
         states: build_states(states),
     })
 }
 
-fn _build_nfa(node: Node, id_generator: &mut IDGenerator) -> Result<(Vec<State>, usize), String> {
+fn _build_nfa(
+    node: Node,
+    id_generator: &mut IDGenerator,
+) -> Result<(Vec<State>, usize, usize), String> {
     let mut start = generate_state(id_generator, false);
     let mut states = vec![];
+    let mut end_id = 0;
     match node {
         Node::Literal(c) => {
-            let (added_states, _) = build_literal(id_generator, &mut start, c)?;
+            let (added_states, _, _end_id) = build_literal(id_generator, &mut start, c)?;
             states.extend(added_states);
+            end_id = _end_id;
         }
         Node::Or(left, right) => {
-            let (added_states, _) = build_or(id_generator, &mut start, left, right)?;
+            let (added_states, _, _end_id) = build_or(id_generator, &mut start, left, right)?;
             states.extend(added_states);
+            end_id = _end_id;
         }
+        // Node::Concat(nodes) => {
+        //     let (added_states, _, _) = build_concat(id_generator, &mut start, nodes)?;
+        //     states.extend(added_states);
+        // }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -84,20 +97,20 @@ fn _build_nfa(node: Node, id_generator: &mut IDGenerator) -> Result<(Vec<State>,
 
     let start_id = start.id;
     states.push(start);
-    Ok((states, start_id))
+    Ok((states, start_id, end_id))
 }
 
 fn build_literal(
     id_generator: &mut IDGenerator,
     start: &mut State,
     c: char,
-) -> Result<(Vec<State>, usize), String> {
+) -> Result<(Vec<State>, usize, usize), String> {
     let q0 = generate_state(id_generator, true);
     let q0_id = q0.id;
 
-    start.transitions.insert(Some(c), HashSet::from([q0.id]));
+    start.add_transition(Some(c), q0_id);
 
-    Ok((vec![q0], q0_id))
+    Ok((vec![q0], q0_id, q0_id))
 }
 
 fn build_or(
@@ -105,28 +118,63 @@ fn build_or(
     start: &mut State,
     left: Box<Node>,
     right: Box<Node>,
-) -> Result<(Vec<State>, usize), String> {
+) -> Result<(Vec<State>, usize, usize), String> {
     let mut q0 = generate_state(id_generator, false);
     let left = *left;
     let right = *right;
-    let (left_states, left_start_id) = _build_nfa(left, id_generator)?;
-    let (right_states, right_start_id) = _build_nfa(right, id_generator)?;
+    let (mut left_states, left_start_id, left_end_id) = _build_nfa(left, id_generator)?;
+    let (mut right_states, right_start_id, right_end_id) = _build_nfa(right, id_generator)?;
 
     // start -> q0
-    start.transitions.insert(None, HashSet::from([q0.id]));
+    start.add_transition(None, q0.id);
 
     // q0 -> left_states or right_states
-    q0.transitions
-        .insert(None, HashSet::from([left_start_id, right_start_id]));
+    q0.add_transition(None, left_start_id);
+    q0.add_transition(None, right_start_id);
+
+    // end -> left_end_id or right_end_id
+    let end = generate_state(id_generator, true);
+    let end_id = end.id;
+
+    // change is_accept to false
+    let left_end_state = left_states
+        .iter_mut()
+        .find(|state| state.id == left_end_id)
+        .unwrap();
+    left_end_state.is_accept = false;
+    left_end_state.add_transition(None, end.id);
+    let right_end_state = right_states
+        .iter_mut()
+        .find(|state| state.id == right_end_id)
+        .unwrap();
+    right_end_state.is_accept = false;
+    right_end_state.add_transition(None, end.id);
 
     let start_id = q0.id;
     // return start, left_states, right_states
-    let mut states = vec![q0];
+    let mut states = vec![q0, end];
     states.extend(left_states.into_iter());
     states.extend(right_states.into_iter());
 
-    Ok((states, start_id))
+    Ok((states, start_id, end_id))
 }
+
+// fn build_concat(
+//     id_generator: &mut IDGenerator,
+//     start: &mut State,
+//     nodes: Vec<Box<Node>>,
+// ) -> Result<(Vec<State>, usize, usize), String> {
+//     let mut states = vec![];
+
+//     let mut prev_state = start;
+//     for node in nodes {
+//         let (added_states, first_state_id) = _build_nfa(*node, id_generator)?;
+//         prev_state.add_transition(None, first_state_id);
+//         // TODO add: transition to last state
+//     }
+
+//    Ok((states, start.id))
+//}
 
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
     let mut map = HashMap::new();
@@ -176,7 +224,7 @@ impl InputWithIndex {
         self.index = index;
     }
     fn is_end(&self) -> bool {
-        self.index > self.input.len()
+        self.peek().is_none()
     }
 }
 
@@ -185,11 +233,11 @@ fn _match_nfa(
     current_state_id: usize,
     input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
-    println!("\n\n--- _match_nfa ---");
-    println!("input: {:#?}", input);
-    println!("current_state_id: {}", current_state_id);
+    println!(
+        "\n\n--- _match_nfa --- current_state_id: {}, index: {}",
+        current_state_id, input.index,
+    );
     if input.is_end() {
-        println!("- input is end -");
         let closure = epsilon_closure(nfa, current_state_id)?;
         for state_id in closure {
             if nfa.states.get(&state_id).unwrap().is_accept {
@@ -200,7 +248,6 @@ fn _match_nfa(
     }
 
     if let Some(c) = input.peek() {
-        println!("c: {}", c);
         // check transition
         let _next_states = nfa
             .states
@@ -209,13 +256,11 @@ fn _match_nfa(
 
         // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
-        println!("closure: {:?}", closure);
         let next_states: HashSet<usize> = _next_states
             .unwrap_or(&HashSet::new())
             .union(&closure)
             .cloned()
             .collect();
-        println!("next_states: {:?}", next_states);
 
         // (state_id, is_epsilon)
         let next_states = next_states
@@ -231,20 +276,16 @@ fn _match_nfa(
 
         for (next_state_id, is_epsilon) in next_states {
             let next_state = nfa.states.get(&next_state_id).unwrap();
-            println!("next_state_id: {}", next_state_id);
             // check state is accept
             if next_state.is_accept {
                 return Ok(MatchResult::Match);
             } else {
                 // if not accept, try next state
                 let current_index = input.index;
-                println!("current_index: {}", current_index);
                 if !is_epsilon {
                     input.next();
                 }
-                println!("||input: {:#?}", input);
                 let result = _match_nfa(nfa, next_state_id.clone(), input)?;
-                println!("||result: {:?}", result);
                 match result {
                     MatchResult::Match => return Ok(MatchResult::Match),
                     MatchResult::NoMatch => {
