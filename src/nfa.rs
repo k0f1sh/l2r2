@@ -74,7 +74,7 @@ fn _build_nfa(
 ) -> Result<(Vec<State>, usize, usize), String> {
     let mut start = generate_state(id_generator, false);
     let mut states = vec![];
-    let mut end_id = 0;
+    let end_id;
     match node {
         Node::Literal(c) => {
             let (added_states, _, _end_id) = build_literal(id_generator, &mut start, c)?;
@@ -417,5 +417,54 @@ mod tests {
 
         let result = epsilon_closure(&nfa, 2);
         assert_eq!(result, Ok(HashSet::from([])));
+    }
+
+    #[test]
+    fn test_match_nfa() {
+        // a
+        let nfa = build_nfa(Node::Literal('a')).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+
+        // ab
+        let nfa = build_nfa(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')])).unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "a"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(false));
+
+        // a|b
+        let nfa = build_nfa(Node::Or(
+            Box::new(Node::Literal('a')),
+            Box::new(Node::Literal('b')),
+        ))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ba"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bb"), Ok(true));
+
+        // ab|cd
+        let nfa = build_nfa(Node::Or(
+            Box::new(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')])),
+            Box::new(Node::Concat(vec![Node::Literal('c'), Node::Literal('d')])),
+        ))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "cd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "abcd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "abd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ac"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "ad"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "bc"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "bd"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "abd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "acd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bcd"), Ok(true));
     }
 }
