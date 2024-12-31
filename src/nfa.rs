@@ -266,10 +266,6 @@ fn _match_nfa(
     current_state_id: usize,
     input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
-    println!(
-        "\n\n--- _match_nfa --- current_state_id: {}, index: {}",
-        current_state_id, input.index,
-    );
     if input.is_end() {
         let closure = epsilon_closure(nfa, current_state_id)?;
         for state_id in closure {
