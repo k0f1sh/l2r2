@@ -2,5 +2,15 @@
 name = "l2r2"
 version = "0.1.0"
 edition = "2021"
+default-run = "l2r2grep"
 
 [dependencies]
+
+
+[[bin]]
+name = "l2r2grep"
+path = "src/main.rs"
+
+[[bin]]
+name = "dot"
+path = "src/dot.rs"

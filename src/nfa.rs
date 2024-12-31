@@ -387,6 +387,50 @@ fn _epsilon_closure(
     Ok(())
 }
 
+impl NFA {
+    pub fn to_dot(&self) -> String {
+        format!(
+            "digraph finite_state_machine {{\n{}\n}}",
+            self.to_dot_body()
+        )
+    }
+
+    fn to_dot_body(&self) -> String {
+        let mut body = String::new();
+
+        let mut accept_states = vec![];
+        for state in self.states.values() {
+            if state.is_accept {
+                accept_states.push(state.id);
+            }
+        }
+
+        body.push_str(&format!("\trankdir=LR\n"));
+        body.push_str(&format!(
+            "\tnode [shape=doublecircle]; {};\n",
+            accept_states
+                .iter()
+                .map(|id| format!("{}", id))
+                .collect::<Vec<String>>()
+                .join(" ")
+        ));
+        body.push_str(&format!("\tnode [shape=circle];\n"));
+        for state in self.states.values() {
+            for (c, next_states) in state.transitions.iter() {
+                for next_state_id in next_states {
+                    body.push_str(&format!(
+                        "\t{} -> {} [label=\"{}\"]\n",
+                        state.id,
+                        next_state_id,
+                        c.unwrap_or('ε')
+                    ));
+                }
+            }
+        }
+        body
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
