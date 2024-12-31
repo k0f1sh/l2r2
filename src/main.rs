@@ -9,13 +9,17 @@ use parser::parse;
 fn main() {
     println!("Hello, world!");
 
-    let l = lex("c").unwrap();
+    let input = "c";
+
+    let l = lex("a|b").unwrap();
     let p = parse(l).unwrap();
+    println!("--- parse ---");
+    println!("{:#?}", p);
 
     let nfa = build_nfa(p).unwrap();
     println!("--- nfa ---");
     println!("{:#?}", nfa);
-    let result = match_nfa(&nfa, "bab");
+    let result = match_nfa(&nfa, input);
     println!("--- result ---");
     println!("{:#?}", result);
 }

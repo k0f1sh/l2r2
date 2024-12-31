@@ -7,7 +7,7 @@ pub enum Node {
     Literal(char),
     AnyChar,
     CharClass(Vec<char>),
-    Union(Box<Node>, Box<Node>),
+    Or(Box<Node>, Box<Node>),
     ZeroOrMore(Box<Node>),
     OneOrMore(Box<Node>),
     ZeroOrOne(Box<Node>),
@@ -28,7 +28,7 @@ fn parse_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node
             Token::Pipe => {
                 tokens.next();
                 let right = parse_term(tokens)?;
-                left = Node::Union(Box::new(left), Box::new(right));
+                left = Node::Or(Box::new(left), Box::new(right));
             }
             _ => break,
         }
@@ -187,15 +187,15 @@ mod tests {
         );
         assert_eq!(
             parse(lex("a|b").unwrap()),
-            Ok(Node::Union(
+            Ok(Node::Or(
                 Box::new(Node::Literal('a')),
                 Box::new(Node::Literal('b'))
             ))
         );
         assert_eq!(
             parse(lex("a|b|c").unwrap()),
-            Ok(Node::Union(
-                Box::new(Node::Union(
+            Ok(Node::Or(
+                Box::new(Node::Or(
                     Box::new(Node::Literal('a')),
                     Box::new(Node::Literal('b'))
                 )),
@@ -204,21 +204,21 @@ mod tests {
         );
         assert_eq!(
             parse(lex("a*|b").unwrap()),
-            Ok(Node::Union(
+            Ok(Node::Or(
                 Box::new(Node::ZeroOrMore(Box::new(Node::Literal('a')))),
                 Box::new(Node::Literal('b'))
             ))
         );
         assert_eq!(
             parse(lex("a|([a-c])").unwrap()),
-            Ok(Node::Union(
+            Ok(Node::Or(
                 Box::new(Node::Literal('a')),
                 Box::new(Node::Group(Box::new(Node::CharClass(vec!['a', 'b', 'c']))))
             ))
         );
         assert_eq!(
             parse(lex("abc|d").unwrap()),
-            Ok(Node::Union(
+            Ok(Node::Or(
                 Box::new(Node::Concat(vec![
                     Node::Literal('a'),
                     Node::Literal('b'),
