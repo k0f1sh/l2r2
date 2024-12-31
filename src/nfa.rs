@@ -7,7 +7,7 @@ pub struct State {
     id: usize,
     // if None, epsilon transition
     transitions: HashMap<Option<char>, HashSet<usize>>,
-    is_accept: bool, // このステートが受理状態かどうか
+    is_accept: bool,
 }
 
 impl State {

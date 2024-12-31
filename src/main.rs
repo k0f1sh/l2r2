@@ -12,7 +12,6 @@ fn main() {
     let l = lex("a|([a-c])").unwrap();
     let p = parse(l).unwrap();
 
-    // 未実装のためpは関係ない
     let nfa = build_nfa(p);
     println!("--- nfa ---");
     println!("{:#?}", nfa);
