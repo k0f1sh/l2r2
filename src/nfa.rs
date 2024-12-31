@@ -30,16 +30,61 @@ pub struct NFA {
     states: HashMap<usize, State>,
 }
 
-pub fn build_nfa(node: Node) -> NFA {
-    // TODO: This is just an example
-    let start_id = 0;
-    let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
-    let q1 = State::new(1, HashMap::from([(Some('a'), HashSet::from([2]))]), false);
-    let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
-    let q3 = State::new(3, HashMap::new(), true);
+#[derive(Debug)]
+pub struct IDGenerator {
+    index: usize,
+}
 
-    let states = build_states(vec![q0, q1, q2, q3]);
-    NFA { start_id, states }
+impl IDGenerator {
+    fn new() -> Self {
+        Self { index: 0 }
+    }
+
+    fn next(&mut self) -> usize {
+        let result = self.index;
+        self.index += 1;
+        result
+    }
+}
+
+fn generate_state(id_generator: &mut IDGenerator, is_accept: bool) -> State {
+    let id = id_generator.next();
+    State::new(id, HashMap::new(), is_accept)
+}
+
+pub fn build_nfa(node: Node) -> Result<NFA, String> {
+    let mut id_generator = IDGenerator::new();
+
+    let mut start = generate_state(&mut id_generator, false);
+    let start_id = start.id;
+
+    let states = match node {
+        Node::Literal(c) => {
+            let mut states = build_literal(&mut id_generator, &mut start, c)?;
+            states.push(start);
+            states
+        }
+        _ => {
+            return Err(format!("Unsupported node: {:?}", node));
+        }
+    };
+
+    Ok(NFA {
+        start_id: start_id,
+        states: build_states(states),
+    })
+}
+
+fn build_literal(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    c: char,
+) -> Result<Vec<State>, String> {
+    let q0 = generate_state(id_generator, true);
+
+    start.transitions.insert(Some(c), HashSet::from([q0.id]));
+
+    Ok(vec![q0])
 }
 
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
