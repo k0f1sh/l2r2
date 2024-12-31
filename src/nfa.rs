@@ -86,10 +86,11 @@ fn _build_nfa(
             states.extend(added_states);
             end_id = _end_id;
         }
-        // Node::Concat(nodes) => {
-        //     let (added_states, _, _) = build_concat(id_generator, &mut start, nodes)?;
-        //     states.extend(added_states);
-        // }
+        Node::Concat(nodes) => {
+            let (added_states, _, _end_id) = build_concat(id_generator, &mut start, nodes)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -159,22 +160,54 @@ fn build_or(
     Ok((states, start_id, end_id))
 }
 
-// fn build_concat(
-//     id_generator: &mut IDGenerator,
-//     start: &mut State,
-//     nodes: Vec<Box<Node>>,
-// ) -> Result<(Vec<State>, usize, usize), String> {
-//     let mut states = vec![];
+fn build_concat(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    nodes: Vec<Node>,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let q0 = generate_state(id_generator, false);
+    let start_id = q0.id;
 
-//     let mut prev_state = start;
-//     for node in nodes {
-//         let (added_states, first_state_id) = _build_nfa(*node, id_generator)?;
-//         prev_state.add_transition(None, first_state_id);
-//         // TODO add: transition to last state
-//     }
+    start.add_transition(None, q0.id);
 
-//    Ok((states, start.id))
-//}
+    let mut prev_end_id = q0.id;
+    let mut states = vec![q0];
+    for node in nodes {
+        let (mut added_states, _first_id, _end_id) = _build_nfa(node, id_generator)?;
+
+        // add transition to first state
+        let first_state = added_states
+            .iter()
+            .find(|state| state.id == _first_id)
+            .unwrap();
+
+        let prev_end_state = states
+            .iter_mut()
+            .find(|state| state.id == prev_end_id)
+            .unwrap();
+        prev_end_state.add_transition(None, first_state.id);
+
+        let end_state = added_states
+            .iter_mut()
+            .find(|state| state.id == _end_id)
+            .unwrap();
+        prev_end_id = end_state.id;
+
+        // if end_state is accept, change is_accept to false
+        end_state.is_accept = false;
+
+        states.extend(added_states);
+    }
+
+    // last end_state is accept
+    let last_end_state = states
+        .iter_mut()
+        .find(|state| state.id == prev_end_id)
+        .unwrap();
+    last_end_state.is_accept = true;
+
+    Ok((states, start_id, prev_end_id))
+}
 
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
     let mut map = HashMap::new();
