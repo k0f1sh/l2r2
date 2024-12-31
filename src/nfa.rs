@@ -120,18 +120,14 @@ fn build_or(
     left: Box<Node>,
     right: Box<Node>,
 ) -> Result<(Vec<State>, usize, usize), String> {
-    let mut q0 = generate_state(id_generator, false);
     let left = *left;
     let right = *right;
     let (mut left_states, left_start_id, left_end_id) = _build_nfa(left, id_generator)?;
     let (mut right_states, right_start_id, right_end_id) = _build_nfa(right, id_generator)?;
 
-    // start -> q0
-    start.add_transition(None, q0.id);
-
-    // q0 -> left_states or right_states
-    q0.add_transition(None, left_start_id);
-    q0.add_transition(None, right_start_id);
+    // start -> left_states or right_states
+    start.add_transition(None, left_start_id);
+    start.add_transition(None, right_start_id);
 
     // end -> left_end_id or right_end_id
     let end = generate_state(id_generator, true);
@@ -151,13 +147,12 @@ fn build_or(
     right_end_state.is_accept = false;
     right_end_state.add_transition(None, end.id);
 
-    let start_id = q0.id;
     // return start, left_states, right_states
-    let mut states = vec![q0, end];
+    let mut states = vec![end];
     states.extend(left_states.into_iter());
     states.extend(right_states.into_iter());
 
-    Ok((states, start_id, end_id))
+    Ok((states, start.id, end_id))
 }
 
 fn build_concat(
