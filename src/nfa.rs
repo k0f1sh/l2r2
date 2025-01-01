@@ -118,6 +118,11 @@ fn _build_nfa(
             states.extend(added_states);
             end_id = _end_id;
         }
+        Node::OneOrMore(node) => {
+            let (added_states, _, _end_id) = build_one_or_more(id_generator, &mut start, node)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -237,26 +242,26 @@ fn build_concat(
     // from: 0 -(e)-> 1  -(x)-> 2
     // to: 0 -(x)-> 2
 
-    let mut skip_from_to: Vec<(usize, usize)> = vec![];
-    for state in states.iter_mut() {
-        if let Some(skip_to_id) = state.get_if_only_one_epsilon_transition() {
-            skip_from_to.push((state.id, skip_to_id));
-        }
-    }
+    // let mut skip_from_to: Vec<(usize, usize)> = vec![];
+    // for state in states.iter_mut() {
+    //     if let Some(skip_to_id) = state.get_if_only_one_epsilon_transition() {
+    //         skip_from_to.push((state.id, skip_to_id));
+    //     }
+    // }
 
-    let mut remove_state_ids: Vec<usize> = vec![];
-    for (skip_from_id, skip_to_id) in skip_from_to {
-        let skip_to_state = states
-            .iter_mut()
-            .find(|state| state.id == skip_to_id)
-            .unwrap();
+    // let mut remove_state_ids: Vec<usize> = vec![];
+    // for (skip_from_id, skip_to_id) in skip_from_to {
+    //     let skip_to_state = states
+    //         .iter_mut()
+    //         .find(|state| state.id == skip_to_id)
+    //         .unwrap();
 
-        skip_to_state.id = skip_from_id;
-        remove_state_ids.push(skip_to_id);
-    }
+    //     skip_to_state.id = skip_from_id;
+    //     remove_state_ids.push(skip_to_id);
+    // }
 
     // remove skip_to_state
-    states.retain(|state| !remove_state_ids.contains(&state.id));
+    // states.retain(|state| !remove_state_ids.contains(&state.id));
 
     Ok((states, start_id, prev_end_id))
 }
@@ -293,6 +298,26 @@ fn build_zero_or_more(
     states.extend(added_states);
 
     Ok((states, start.id, end_id))
+}
+
+fn build_one_or_more(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    node: Box<Node>,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let (mut added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
+
+    start.add_transition(None, _first_id);
+
+    let child_end_state = added_states
+        .iter_mut()
+        .find(|state| state.id == _end_id)
+        .unwrap();
+    child_end_state.is_accept = true;
+    child_end_state.add_transition(None, _first_id);
+    let end_id = child_end_state.id;
+
+    Ok((added_states, start.id, end_id))
 }
 
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
@@ -614,5 +639,24 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "b"), Ok(true));
         assert_eq!(match_nfa(&nfa, "bb"), Ok(true));
         assert_eq!(match_nfa(&nfa, "a"), Ok(false));
+
+        // a+
+        let nfa = build_nfa(Node::OneOrMore(Box::new(Node::Literal('a')))).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aaa"), Ok(true));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(false));
+
+        // a+b
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::OneOrMore(Box::new(Node::Literal('a'))),
+            Node::Literal('b'),
+        ]))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aaab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(false));
     }
 }
