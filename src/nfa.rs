@@ -824,5 +824,27 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "ababc"), Ok(true));
         assert_eq!(match_nfa(&nfa, "ac"), Ok(false));
         assert_eq!(match_nfa(&nfa, "bc"), Ok(false));
+
+        // .
+        let nfa = build_nfa(Node::AnyChar).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
+
+        // .bc
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::AnyChar,
+            Node::Literal('b'),
+            Node::Literal('c'),
+        ]))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bbc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bcc"), Ok(false));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
+        assert_eq!(match_nfa(&nfa, "a"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "c"), Ok(false));
     }
 }
