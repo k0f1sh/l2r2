@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::parser::Node;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum TransitionKey {
+pub enum TransitionKey {
     Epsilon,
     Literal(char),
     CharClass(Vec<char>),
@@ -142,6 +142,11 @@ fn _build_nfa(
         }
         Node::AnyChar => {
             let (added_states, _, _end_id) = build_any_char(id_generator, &mut start)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
+        Node::CharClass(chars) => {
+            let (added_states, _, _end_id) = build_char_class(id_generator, &mut start, chars)?;
             states.extend(added_states);
             end_id = _end_id;
         }
@@ -377,6 +382,19 @@ fn build_any_char(
     Ok((vec![q0], q0_id, q0_id))
 }
 
+fn build_char_class(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    chars: Vec<char>,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let q0 = generate_state(id_generator, true);
+    let q0_id = q0.id;
+
+    start.add_transition(TransitionKey::CharClass(chars), q0_id);
+
+    Ok((vec![q0], q0_id, q0_id))
+}
+
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
     let mut map = HashMap::new();
     for state in states {
@@ -448,16 +466,27 @@ fn _match_nfa(
         // check transition
         let _next_states = nfa.states.get(&current_state_id).and_then(|state| {
             let mut next_state_ids = HashSet::new();
+            // check literal transition
             if let Some(transitions) = state.transitions.get(&TransitionKey::Literal(c)) {
                 next_state_ids.extend(transitions.iter().cloned());
             }
+            // check any char transition
             if let Some(transitions) = state.transitions.get(&TransitionKey::AnyChar) {
                 next_state_ids.extend(transitions.iter().cloned());
             }
-            // TODO char class
-            //if let Some(transitions) = state.transitions.get(&TransitionKey::CharClass(c)) {
-            //    next_state_ids.extend(transitions.iter().cloned());
-            //}
+            // check char class transition
+            let mut adapted_char_class_transitions = HashSet::new();
+            for transition in state.transitions.iter() {
+                match transition.0 {
+                    TransitionKey::CharClass(chars) => {
+                        if chars.contains(&c) {
+                            adapted_char_class_transitions.extend(transition.1.iter().cloned());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            next_state_ids.extend(adapted_char_class_transitions);
             Some(next_state_ids)
         });
 
