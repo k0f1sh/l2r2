@@ -2,18 +2,25 @@ use std::collections::{HashMap, HashSet};
 
 use crate::parser::Node;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum TransitionKey {
+    Epsilon,
+    Literal(char),
+    CharClass(Vec<char>),
+    AnyChar,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     id: usize,
-    // if None, epsilon transition
-    transitions: HashMap<Option<char>, HashSet<usize>>,
+    transitions: HashMap<TransitionKey, HashSet<usize>>,
     is_accept: bool,
 }
 
 impl State {
     pub fn new(
         id: usize,
-        transitions: HashMap<Option<char>, HashSet<usize>>,
+        transitions: HashMap<TransitionKey, HashSet<usize>>,
         is_accept: bool,
     ) -> Self {
         Self {
@@ -23,24 +30,24 @@ impl State {
         }
     }
 
-    fn add_transition(&mut self, c: Option<char>, state_id: usize) {
+    fn add_transition(&mut self, key: TransitionKey, state_id: usize) {
         self.transitions
-            .entry(c)
+            .entry(key)
             .or_insert(HashSet::new())
             .insert(state_id);
     }
 
     fn is_only_one_epsilon_transition(&self) -> bool {
         self.transitions.len() == 1
-            && self.transitions.contains_key(&None)
-            && self.transitions.get(&None).unwrap().len() == 1
+            && self.transitions.contains_key(&TransitionKey::Epsilon)
+            && self.transitions.get(&TransitionKey::Epsilon).unwrap().len() == 1
     }
 
     fn get_if_only_one_epsilon_transition(&self) -> Option<usize> {
         if self.is_only_one_epsilon_transition() {
             Some(
                 self.transitions
-                    .get(&None)
+                    .get(&TransitionKey::Epsilon)
                     .unwrap()
                     .iter()
                     .next()
@@ -151,7 +158,7 @@ fn build_literal(
     let q0 = generate_state(id_generator, true);
     let q0_id = q0.id;
 
-    start.add_transition(Some(c), q0_id);
+    start.add_transition(TransitionKey::Literal(c), q0_id);
 
     Ok((vec![q0], q0_id, q0_id))
 }
@@ -168,8 +175,8 @@ fn build_or(
     let (mut right_states, right_start_id, right_end_id) = _build_nfa(right, id_generator)?;
 
     // start -> left_states or right_states
-    start.add_transition(None, left_start_id);
-    start.add_transition(None, right_start_id);
+    start.add_transition(TransitionKey::Epsilon, left_start_id);
+    start.add_transition(TransitionKey::Epsilon, right_start_id);
 
     // end -> left_end_id or right_end_id
     let end = generate_state(id_generator, true);
@@ -181,13 +188,13 @@ fn build_or(
         .find(|state| state.id == left_end_id)
         .unwrap();
     left_end_state.is_accept = false;
-    left_end_state.add_transition(None, end.id);
+    left_end_state.add_transition(TransitionKey::Epsilon, end.id);
     let right_end_state = right_states
         .iter_mut()
         .find(|state| state.id == right_end_id)
         .unwrap();
     right_end_state.is_accept = false;
-    right_end_state.add_transition(None, end.id);
+    right_end_state.add_transition(TransitionKey::Epsilon, end.id);
 
     // return start, left_states, right_states
     let mut states = vec![end];
@@ -210,7 +217,7 @@ fn build_concat(
         let (mut added_states, _first_id, _end_id) = _build_nfa(node, id_generator)?;
 
         if prev_end_id == start_id {
-            start.add_transition(None, _first_id);
+            start.add_transition(TransitionKey::Epsilon, _first_id);
         } else {
             // add transition to first state
             let first_state = added_states
@@ -222,7 +229,7 @@ fn build_concat(
                 .iter_mut()
                 .find(|state| state.id == prev_end_id)
                 .unwrap();
-            prev_end_state.add_transition(None, first_state.id);
+            prev_end_state.add_transition(TransitionKey::Epsilon, first_state.id);
         }
 
         let end_state = added_states
@@ -288,19 +295,19 @@ fn build_zero_or_more(
     let (mut added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
 
     // start -> first_state
-    start.add_transition(None, _first_id);
-    start.add_transition(None, end_state.id);
+    start.add_transition(TransitionKey::Epsilon, _first_id);
+    start.add_transition(TransitionKey::Epsilon, end_state.id);
 
     // end_state -> first_state
-    end_state.add_transition(None, _first_id);
+    end_state.add_transition(TransitionKey::Epsilon, _first_id);
 
     // _end_state -> end_state
     let _end_state = added_states
         .iter_mut()
         .find(|state| state.id == _end_id)
         .unwrap();
-    _end_state.add_transition(None, end_state.id);
-    _end_state.add_transition(None, _first_id);
+    _end_state.add_transition(TransitionKey::Epsilon, end_state.id);
+    _end_state.add_transition(TransitionKey::Epsilon, _first_id);
     _end_state.is_accept = false;
 
     let end_id = end_state.id;
@@ -317,14 +324,14 @@ fn build_one_or_more(
 ) -> Result<(Vec<State>, usize, usize), String> {
     let (mut added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
 
-    start.add_transition(None, _first_id);
+    start.add_transition(TransitionKey::Epsilon, _first_id);
 
     let child_end_state = added_states
         .iter_mut()
         .find(|state| state.id == _end_id)
         .unwrap();
     child_end_state.is_accept = true;
-    child_end_state.add_transition(None, _first_id);
+    child_end_state.add_transition(TransitionKey::Epsilon, _first_id);
     let end_id = child_end_state.id;
 
     Ok((added_states, start.id, end_id))
@@ -337,8 +344,8 @@ fn build_zero_or_one(
 ) -> Result<(Vec<State>, usize, usize), String> {
     let (added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
 
-    start.add_transition(None, _first_id);
-    start.add_transition(None, _end_id);
+    start.add_transition(TransitionKey::Epsilon, _first_id);
+    start.add_transition(TransitionKey::Epsilon, _end_id);
 
     Ok((added_states, start.id, _end_id))
 }
@@ -348,8 +355,8 @@ fn build_group(
     start: &mut State,
     node: Box<Node>,
 ) -> Result<(Vec<State>, usize, usize), String> {
-    let (mut added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
-    start.add_transition(None, _first_id);
+    let (added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
+    start.add_transition(TransitionKey::Epsilon, _first_id);
     Ok((added_states, start.id, _end_id))
 }
 
@@ -425,7 +432,7 @@ fn _match_nfa(
         let _next_states = nfa
             .states
             .get(&current_state_id)
-            .and_then(|state| state.transitions.get(&Some(c)));
+            .and_then(|state| state.transitions.get(&TransitionKey::Literal(c)));
 
         // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
@@ -484,7 +491,10 @@ fn _epsilon_closure(
 ) -> Result<(), String> {
     let current_state = nfa.states.get(&current_state_id).unwrap();
     let binding = HashSet::new();
-    let epsilon_states = current_state.transitions.get(&None).unwrap_or(&binding);
+    let epsilon_states = current_state
+        .transitions
+        .get(&TransitionKey::Epsilon)
+        .unwrap_or(&binding);
     for next_state_id in epsilon_states {
         if visited.contains(&next_state_id) {
             continue;
@@ -531,7 +541,13 @@ impl NFA {
                         "\t{} -> {} [label=\"{}\"]\n",
                         state.id,
                         next_state_id,
-                        c.unwrap_or('ε')
+                        match c {
+                            TransitionKey::Literal(c) => format!("{}", c),
+                            TransitionKey::Epsilon => "ε".to_string(),
+                            TransitionKey::CharClass(chars) =>
+                                format!("[{}]", chars.iter().collect::<String>()),
+                            TransitionKey::AnyChar => "AnyChar".to_string(),
+                        }
                     ));
                 }
             }
@@ -549,9 +565,21 @@ mod tests {
         let start_id = 0;
 
         // 0 -> 1 -> 2 -> 3
-        let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
-        let q1 = State::new(1, HashMap::from([(Some('a'), HashSet::from([2]))]), false);
-        let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+        let q0 = State::new(
+            start_id,
+            HashMap::from([(TransitionKey::Epsilon, HashSet::from([1]))]),
+            false,
+        );
+        let q1 = State::new(
+            1,
+            HashMap::from([(TransitionKey::Literal('a'), HashSet::from([2]))]),
+            false,
+        );
+        let q2 = State::new(
+            2,
+            HashMap::from([(TransitionKey::Literal('b'), HashSet::from([3]))]),
+            false,
+        );
         let q3 = State::new(3, HashMap::new(), true);
         let states = build_states(vec![q0, q1, q2, q3]);
 
@@ -562,13 +590,24 @@ mod tests {
         //      <---
         //      |  |
         // 0 -> 1 ->-> 2 -> 3
-        let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
-        let q1 = State::new(
-            1,
-            HashMap::from([(Some('a'), HashSet::from([2])), (None, HashSet::from([1]))]),
+        let q0 = State::new(
+            start_id,
+            HashMap::from([(TransitionKey::Epsilon, HashSet::from([1]))]),
             false,
         );
-        let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+        let q1 = State::new(
+            1,
+            HashMap::from([
+                (TransitionKey::Literal('a'), HashSet::from([2])),
+                (TransitionKey::Epsilon, HashSet::from([1])),
+            ]),
+            false,
+        );
+        let q2 = State::new(
+            2,
+            HashMap::from([(TransitionKey::Literal('b'), HashSet::from([3]))]),
+            false,
+        );
         let q3 = State::new(3, HashMap::new(), true);
         let states = build_states(vec![q0, q1, q2, q3]);
         let nfa = NFA { start_id, states };
@@ -582,16 +621,25 @@ mod tests {
         let result = epsilon_closure(&nfa, 2);
         assert_eq!(result, Ok(HashSet::from([])));
 
-        let q0 = State::new(start_id, HashMap::from([(None, HashSet::from([1]))]), false);
+        // 0 -> 1 -> 2 -> 3
+        let q0 = State::new(
+            start_id,
+            HashMap::from([(TransitionKey::Epsilon, HashSet::from([1]))]),
+            false,
+        );
         let q1 = State::new(
             1,
             HashMap::from([
-                (Some('a'), HashSet::from([2])),
-                (None, HashSet::from([0, 1])),
+                (TransitionKey::Literal('a'), HashSet::from([2])),
+                (TransitionKey::Epsilon, HashSet::from([0, 1])),
             ]),
             false,
         );
-        let q2 = State::new(2, HashMap::from([(Some('b'), HashSet::from([3]))]), false);
+        let q2 = State::new(
+            2,
+            HashMap::from([(TransitionKey::Literal('b'), HashSet::from([3]))]),
+            false,
+        );
         let q3 = State::new(3, HashMap::new(), true);
         let states = build_states(vec![q0, q1, q2, q3]);
         let nfa = NFA { start_id, states };
