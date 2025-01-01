@@ -29,6 +29,28 @@ impl State {
             .or_insert(HashSet::new())
             .insert(state_id);
     }
+
+    fn is_only_one_epsilon_transition(&self) -> bool {
+        self.transitions.len() == 1
+            && self.transitions.contains_key(&None)
+            && self.transitions.get(&None).unwrap().len() == 1
+    }
+
+    fn get_if_only_one_epsilon_transition(&self) -> Option<usize> {
+        if self.is_only_one_epsilon_transition() {
+            Some(
+                self.transitions
+                    .get(&None)
+                    .unwrap()
+                    .iter()
+                    .next()
+                    .unwrap()
+                    .clone(),
+            )
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -206,6 +228,33 @@ fn build_concat(
         .find(|state| state.id == prev_end_id)
         .unwrap();
     last_end_state.is_accept = true;
+
+    // FIXME: too complex maybe
+    // if state has only one epsilon transition, skip it
+    // example:
+    // from: 0 -(e)-> 1  -(x)-> 2
+    // to: 0 -(x)-> 2
+
+    let mut skip_from_to: Vec<(usize, usize)> = vec![];
+    for state in states.iter_mut() {
+        if let Some(skip_to_id) = state.get_if_only_one_epsilon_transition() {
+            skip_from_to.push((state.id, skip_to_id));
+        }
+    }
+
+    let mut remove_state_ids: Vec<usize> = vec![];
+    for (skip_from_id, skip_to_id) in skip_from_to {
+        let skip_to_state = states
+            .iter_mut()
+            .find(|state| state.id == skip_to_id)
+            .unwrap();
+
+        skip_to_state.id = skip_from_id;
+        remove_state_ids.push(skip_to_id);
+    }
+
+    // remove skip_to_state
+    states.retain(|state| !remove_state_ids.contains(&state.id));
 
     Ok((states, start_id, prev_end_id))
 }
