@@ -29,6 +29,10 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             ')' => tokens.push(Token::RightParen),
             '[' => tokens.push(Token::LeftBracket),
             ']' => tokens.push(Token::RightBracket),
+            '\\' => {
+                it.next().unwrap();
+                tokens.push(Token::Literal(it.peek().unwrap().clone()));
+            }
             _ => {
                 if c.is_ascii_alphabetic() || c.is_ascii_digit() {
                     tokens.push(Token::Literal(c));
@@ -89,5 +93,7 @@ mod tests {
             lex("a|b").unwrap(),
             vec![Token::Literal('a'), Token::Pipe, Token::Literal('b')]
         );
+        assert_eq!(lex("\\a").unwrap(), vec![Token::Literal('a')]);
+        assert_eq!(lex("\\-").unwrap(), vec![Token::Literal('-')]);
     }
 }
