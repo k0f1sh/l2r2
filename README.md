@@ -1,7 +1,8 @@
 # LiteLearningRustRegex (L2R2)
 
-LiteLearningRustRegex (L2R2) is a lightweight project designed for exploring and understanding how regex engines work.
-This project is a learning-focused.
+LLiteLearningRustRegex (L2R2) is my personal learning project.
+I started it to understand regular expressions.
+Please do not use it in production environments.
 
 ## Usage (grep)
 
