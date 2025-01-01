@@ -165,27 +165,28 @@ fn build_concat(
     start: &mut State,
     nodes: Vec<Node>,
 ) -> Result<(Vec<State>, usize, usize), String> {
-    let q0 = generate_state(id_generator, false);
-    let start_id = q0.id;
+    let start_id = start.id;
 
-    start.add_transition(None, q0.id);
-
-    let mut prev_end_id = q0.id;
-    let mut states = vec![q0];
+    let mut prev_end_id = start_id;
+    let mut states: Vec<State> = vec![];
     for node in nodes {
         let (mut added_states, _first_id, _end_id) = _build_nfa(node, id_generator)?;
 
-        // add transition to first state
-        let first_state = added_states
-            .iter()
-            .find(|state| state.id == _first_id)
-            .unwrap();
+        if prev_end_id == start_id {
+            start.add_transition(None, _first_id);
+        } else {
+            // add transition to first state
+            let first_state = added_states
+                .iter()
+                .find(|state| state.id == _first_id)
+                .unwrap();
 
-        let prev_end_state = states
-            .iter_mut()
-            .find(|state| state.id == prev_end_id)
-            .unwrap();
-        prev_end_state.add_transition(None, first_state.id);
+            let prev_end_state = states
+                .iter_mut()
+                .find(|state| state.id == prev_end_id)
+                .unwrap();
+            prev_end_state.add_transition(None, first_state.id);
+        }
 
         let end_state = added_states
             .iter_mut()
