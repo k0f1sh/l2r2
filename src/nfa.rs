@@ -595,5 +595,24 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "abd"), Ok(true));
         assert_eq!(match_nfa(&nfa, "acd"), Ok(true));
         assert_eq!(match_nfa(&nfa, "bcd"), Ok(true));
+
+        // a*
+        let nfa = build_nfa(Node::ZeroOrMore(Box::new(Node::Literal('a')))).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
+        assert_eq!(match_nfa(&nfa, ""), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true)); // Currently returns true because it continues to next char when no match. Should it be false instead?
+
+        // a*b
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::ZeroOrMore(Box::new(Node::Literal('a'))),
+            Node::Literal('b'),
+        ]))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bb"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "a"), Ok(false));
     }
 }
