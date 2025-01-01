@@ -33,3 +33,11 @@ Currently supported regex syntax:
   - Zero or one (?) - e.g. "a?" matches "" or "a"
 - Wildcard (.) - matches any single character
 - Character classes ([abc]) - matches any single character in the set
+
+
+## TODO
+
+- [ ] Optimize the NFA construction
+  - remove redundant epsilon transitions
+- [ ] Implement `^` and `$`
+- [ ] Implement repetition (e.g. `a{2,3}`)
