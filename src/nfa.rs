@@ -384,9 +384,7 @@ fn _match_nfa(
             .collect::<Vec<(usize, bool)>>();
 
         if next_states.is_empty() {
-            // if no transition, skip current char
-            input.next();
-            return _match_nfa(nfa, current_state_id, input);
+            return Ok(MatchResult::NoMatch);
         }
 
         for (next_state_id, is_epsilon) in next_states {
@@ -562,7 +560,7 @@ mod tests {
         // ab
         let nfa = build_nfa(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')])).unwrap();
         assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
-        assert_eq!(match_nfa(&nfa, "aab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aab"), Ok(false));
         assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
         assert_eq!(match_nfa(&nfa, "a"), Ok(false));
         assert_eq!(match_nfa(&nfa, "b"), Ok(false));
@@ -595,15 +593,15 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "bd"), Ok(false));
         assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
         assert_eq!(match_nfa(&nfa, "abd"), Ok(true));
-        assert_eq!(match_nfa(&nfa, "acd"), Ok(true));
-        assert_eq!(match_nfa(&nfa, "bcd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "acd"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "bcd"), Ok(false));
 
         // a*
         let nfa = build_nfa(Node::ZeroOrMore(Box::new(Node::Literal('a')))).unwrap();
         assert_eq!(match_nfa(&nfa, "a"), Ok(true));
         assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
         assert_eq!(match_nfa(&nfa, ""), Ok(true));
-        assert_eq!(match_nfa(&nfa, "b"), Ok(true)); // Currently returns true because it continues to next char when no match. Should it be false instead?
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true)); // is this correct?
 
         // a*b
         let nfa = build_nfa(Node::Concat(vec![
