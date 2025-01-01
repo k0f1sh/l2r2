@@ -230,6 +230,8 @@ fn build_concat(
     last_end_state.is_accept = true;
 
     // FIXME: too complex maybe
+    // TODO: Need to optimize not just here but throughout the entire code
+    //       (If skip_to state has incoming transitions from multiple states, we need to merge them properly)
     // if state has only one epsilon transition, skip it
     // example:
     // from: 0 -(e)-> 1  -(x)-> 2
