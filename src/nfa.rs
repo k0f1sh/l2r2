@@ -37,12 +37,14 @@ impl State {
             .insert(state_id);
     }
 
+    #[allow(dead_code)]
     fn is_only_one_epsilon_transition(&self) -> bool {
         self.transitions.len() == 1
             && self.transitions.contains_key(&TransitionKey::Epsilon)
             && self.transitions.get(&TransitionKey::Epsilon).unwrap().len() == 1
     }
 
+    #[allow(dead_code)]
     fn get_if_only_one_epsilon_transition(&self) -> Option<usize> {
         if self.is_only_one_epsilon_transition() {
             Some(
@@ -60,6 +62,7 @@ impl State {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct NFA {
     start_id: usize,
@@ -102,57 +105,16 @@ fn _build_nfa(
     id_generator: &mut IDGenerator,
 ) -> Result<(Vec<State>, usize, usize), String> {
     let mut start = generate_state(id_generator, false);
-    let mut states = vec![];
-    let end_id;
-    match node {
-        Node::Literal(c) => {
-            let (added_states, _, _end_id) = build_literal(id_generator, &mut start, c)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::Or(left, right) => {
-            let (added_states, _, _end_id) = build_or(id_generator, &mut start, left, right)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::Concat(nodes) => {
-            let (added_states, _, _end_id) = build_concat(id_generator, &mut start, nodes)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::ZeroOrMore(node) => {
-            let (added_states, _, _end_id) = build_zero_or_more(id_generator, &mut start, node)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::OneOrMore(node) => {
-            let (added_states, _, _end_id) = build_one_or_more(id_generator, &mut start, node)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::ZeroOrOne(node) => {
-            let (added_states, _, _end_id) = build_zero_or_one(id_generator, &mut start, node)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::Group(node) => {
-            let (added_states, _, _end_id) = build_group(id_generator, &mut start, node)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::AnyChar => {
-            let (added_states, _, _end_id) = build_any_char(id_generator, &mut start)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        Node::CharClass(chars) => {
-            let (added_states, _, _end_id) = build_char_class(id_generator, &mut start, chars)?;
-            states.extend(added_states);
-            end_id = _end_id;
-        }
-        _ => {
-            return Err(format!("Unsupported node: {:?}", node));
-        }
+    let (mut states, _, end_id) = match node {
+        Node::Literal(c) => build_literal(id_generator, &mut start, c)?,
+        Node::Or(left, right) => build_or(id_generator, &mut start, left, right)?,
+        Node::Concat(nodes) => build_concat(id_generator, &mut start, nodes)?,
+        Node::ZeroOrMore(node) => build_zero_or_more(id_generator, &mut start, node)?,
+        Node::OneOrMore(node) => build_one_or_more(id_generator, &mut start, node)?,
+        Node::ZeroOrOne(node) => build_zero_or_one(id_generator, &mut start, node)?,
+        Node::Group(node) => build_group(id_generator, &mut start, node)?,
+        Node::AnyChar => build_any_char(id_generator, &mut start)?,
+        Node::CharClass(chars) => build_char_class(id_generator, &mut start, chars)?,
     };
 
     let start_id = start.id;
@@ -403,6 +365,7 @@ fn build_states(states: Vec<State>) -> HashMap<usize, State> {
     map
 }
 
+#[allow(dead_code)]
 pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
     let result = _match_nfa(
         nfa,
@@ -418,6 +381,7 @@ pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum MatchResult {
     Match,
@@ -430,6 +394,7 @@ struct InputWithIndex {
     input: String,
 }
 
+#[allow(dead_code)]
 impl InputWithIndex {
     fn next(&mut self) -> Option<char> {
         let result = self.input.chars().nth(self.index);
