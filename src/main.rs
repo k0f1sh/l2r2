@@ -38,6 +38,9 @@ fn main() {
                         break;
                     }
 
+                    if current_input.is_empty() {
+                        break;
+                    }
                     current_input.drain(0..1);
                 }
             }

@@ -128,6 +128,11 @@ fn _build_nfa(
             states.extend(added_states);
             end_id = _end_id;
         }
+        Node::Group(node) => {
+            let (added_states, _, _end_id) = build_group(id_generator, &mut start, node)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -335,6 +340,16 @@ fn build_zero_or_one(
     start.add_transition(None, _first_id);
     start.add_transition(None, _end_id);
 
+    Ok((added_states, start.id, _end_id))
+}
+
+fn build_group(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    node: Box<Node>,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let (mut added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
+    start.add_transition(None, _first_id);
     Ok((added_states, start.id, _end_id))
 }
 
@@ -694,5 +709,45 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "b"), Ok(true));
         assert_eq!(match_nfa(&nfa, "aa"), Ok(false));
         assert_eq!(match_nfa(&nfa, "aab"), Ok(false));
+
+        // (a)
+        let nfa = build_nfa(Node::Group(Box::new(Node::Literal('a')))).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(false));
+
+        // (a|b)
+        let nfa = build_nfa(Node::Group(Box::new(Node::Or(
+            Box::new(Node::Literal('a')),
+            Box::new(Node::Literal('b')),
+        ))))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
+
+        // (ab)*
+        let nfa = build_nfa(Node::ZeroOrMore(Box::new(Node::Concat(vec![
+            Node::Literal('a'),
+            Node::Literal('b'),
+        ]))))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "abab"), Ok(true));
+
+        // (ab)*c
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::ZeroOrMore(Box::new(Node::Concat(vec![
+                Node::Literal('a'),
+                Node::Literal('b'),
+            ]))),
+            Node::Literal('c'),
+        ]))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "abab"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ababc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ac"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "bc"), Ok(false));
     }
 }
