@@ -140,6 +140,11 @@ fn _build_nfa(
             states.extend(added_states);
             end_id = _end_id;
         }
+        Node::AnyChar => {
+            let (added_states, _, _end_id) = build_any_char(id_generator, &mut start)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -360,6 +365,18 @@ fn build_group(
     Ok((added_states, start.id, _end_id))
 }
 
+fn build_any_char(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let q0 = generate_state(id_generator, true);
+    let q0_id = q0.id;
+
+    start.add_transition(TransitionKey::AnyChar, q0_id);
+
+    Ok((vec![q0], q0_id, q0_id))
+}
+
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
     let mut map = HashMap::new();
     for state in states {
@@ -429,15 +446,25 @@ fn _match_nfa(
 
     if let Some(c) = input.peek() {
         // check transition
-        let _next_states = nfa
-            .states
-            .get(&current_state_id)
-            .and_then(|state| state.transitions.get(&TransitionKey::Literal(c)));
+        let _next_states = nfa.states.get(&current_state_id).and_then(|state| {
+            let mut next_state_ids = HashSet::new();
+            if let Some(transitions) = state.transitions.get(&TransitionKey::Literal(c)) {
+                next_state_ids.extend(transitions.iter().cloned());
+            }
+            if let Some(transitions) = state.transitions.get(&TransitionKey::AnyChar) {
+                next_state_ids.extend(transitions.iter().cloned());
+            }
+            // TODO char class
+            //if let Some(transitions) = state.transitions.get(&TransitionKey::CharClass(c)) {
+            //    next_state_ids.extend(transitions.iter().cloned());
+            //}
+            Some(next_state_ids)
+        });
 
         // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
         let next_states: HashSet<usize> = _next_states
-            .unwrap_or(&HashSet::new())
+            .unwrap_or(HashSet::new())
             .union(&closure)
             .cloned()
             .collect();

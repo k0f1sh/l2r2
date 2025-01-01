@@ -27,14 +27,14 @@ fn main() {
 
     for line in lines {
         match line {
-            Ok(input) => {
-                let mut current_input = input.clone();
+            Ok(raw_input) => {
+                let mut current_input = raw_input.clone();
                 loop {
                     let input = current_input.clone();
                     let result = match_nfa(&nfa, &input);
                     let matched = result.unwrap();
                     if matched {
-                        println!("{}", input);
+                        println!("{}", raw_input);
                         break;
                     }
 
