@@ -840,5 +840,28 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "a"), Ok(false));
         assert_eq!(match_nfa(&nfa, "b"), Ok(false));
         assert_eq!(match_nfa(&nfa, "c"), Ok(false));
+
+        // [a-c]
+        let nfa = build_nfa(Node::CharClass(vec!['a', 'b', 'c'])).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "c"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
+        assert_eq!(match_nfa(&nfa, "d"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "da"), Ok(false));
+
+        // [a-c]d
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::CharClass(vec!['a', 'b', 'c']),
+            Node::Literal('d'),
+        ]))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ad"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "cd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "dd"), Ok(false));
     }
 }
