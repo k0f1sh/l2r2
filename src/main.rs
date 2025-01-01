@@ -27,21 +27,12 @@ fn main() {
 
     for line in lines {
         match line {
-            Ok(raw_input) => {
-                let mut current_input = raw_input.clone();
-                loop {
-                    let input = current_input.clone();
-                    let result = match_nfa(&nfa, &input);
-                    let matched = result.unwrap();
-                    if matched {
-                        println!("{}", raw_input);
-                        break;
-                    }
-
-                    if current_input.is_empty() {
-                        break;
-                    }
-                    current_input.drain(0..1);
+            Ok(input) => {
+                let result = match_nfa(&nfa, &input);
+                let matched = result.unwrap();
+                if matched {
+                    println!("{}", input);
+                    break;
                 }
             }
             Err(e) => {

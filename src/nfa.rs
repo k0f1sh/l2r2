@@ -470,7 +470,8 @@ fn _match_nfa(
             .collect::<Vec<(usize, bool)>>();
 
         if next_states.is_empty() {
-            return Ok(MatchResult::NoMatch);
+            input.next();
+            return _match_nfa(nfa, nfa.start_id, input);
         }
 
         for (next_state_id, is_epsilon) in next_states {
@@ -720,15 +721,15 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "bd"), Ok(false));
         assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
         assert_eq!(match_nfa(&nfa, "abd"), Ok(true));
-        assert_eq!(match_nfa(&nfa, "acd"), Ok(false));
-        assert_eq!(match_nfa(&nfa, "bcd"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "acd"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bcd"), Ok(true));
 
         // a*
         let nfa = build_nfa(Node::ZeroOrMore(Box::new(Node::Literal('a')))).unwrap();
         assert_eq!(match_nfa(&nfa, "a"), Ok(true));
         assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
         assert_eq!(match_nfa(&nfa, ""), Ok(true));
-        assert_eq!(match_nfa(&nfa, "b"), Ok(true)); // is this correct?
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
 
         // a*b
         let nfa = build_nfa(Node::Concat(vec![
@@ -777,7 +778,7 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
         assert_eq!(match_nfa(&nfa, "b"), Ok(true));
         assert_eq!(match_nfa(&nfa, "aa"), Ok(false));
-        assert_eq!(match_nfa(&nfa, "aab"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "aab"), Ok(true));
 
         // (a)
         let nfa = build_nfa(Node::Group(Box::new(Node::Literal('a')))).unwrap();
@@ -816,8 +817,8 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "abab"), Ok(false));
         assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
         assert_eq!(match_nfa(&nfa, "ababc"), Ok(true));
-        assert_eq!(match_nfa(&nfa, "ac"), Ok(false));
-        assert_eq!(match_nfa(&nfa, "bc"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "ac"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "bc"), Ok(true));
 
         // .
         let nfa = build_nfa(Node::AnyChar).unwrap();
@@ -851,7 +852,7 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "abc"), Ok(true));
         assert_eq!(match_nfa(&nfa, ""), Ok(false));
         assert_eq!(match_nfa(&nfa, "d"), Ok(false));
-        assert_eq!(match_nfa(&nfa, "da"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "da"), Ok(true));
 
         // [a-c]d
         let nfa = build_nfa(Node::Concat(vec![
