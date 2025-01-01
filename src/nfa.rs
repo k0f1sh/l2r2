@@ -123,6 +123,11 @@ fn _build_nfa(
             states.extend(added_states);
             end_id = _end_id;
         }
+        Node::ZeroOrOne(node) => {
+            let (added_states, _, _end_id) = build_zero_or_one(id_generator, &mut start, node)?;
+            states.extend(added_states);
+            end_id = _end_id;
+        }
         _ => {
             return Err(format!("Unsupported node: {:?}", node));
         }
@@ -318,6 +323,19 @@ fn build_one_or_more(
     let end_id = child_end_state.id;
 
     Ok((added_states, start.id, end_id))
+}
+
+fn build_zero_or_one(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+    node: Box<Node>,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let (added_states, _first_id, _end_id) = _build_nfa(*node, id_generator)?;
+
+    start.add_transition(None, _first_id);
+    start.add_transition(None, _end_id);
+
+    Ok((added_states, start.id, _end_id))
 }
 
 fn build_states(states: Vec<State>) -> HashMap<usize, State> {
@@ -658,5 +676,23 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "aab"), Ok(true));
         assert_eq!(match_nfa(&nfa, "aaab"), Ok(true));
         assert_eq!(match_nfa(&nfa, "b"), Ok(false));
+
+        // a?
+        let nfa = build_nfa(Node::ZeroOrOne(Box::new(Node::Literal('a')))).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aa"), Ok(true));
+        assert_eq!(match_nfa(&nfa, ""), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
+
+        // a?b
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::ZeroOrOne(Box::new(Node::Literal('a'))),
+            Node::Literal('b'),
+        ]))
+        .unwrap();
+        assert_eq!(match_nfa(&nfa, "ab"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "b"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "aa"), Ok(false));
+        assert_eq!(match_nfa(&nfa, "aab"), Ok(false));
     }
 }
