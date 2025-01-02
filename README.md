@@ -25,15 +25,15 @@ dot -Tpng nfa.dot -o nfa.png
 Currently supported regex syntax: 
 
 - Basic characters (e.g. "a", "b", "c")
-- Alternation (|) - e.g. "a|b" matches "a" or "b"
+- Alternation (`|`) - e.g. "a|b" matches "a" or "b"
 - Concatenation - e.g. "ab" matches "ab"
-- Grouping with parentheses - e.g. "(a|b)c" matches "ac" or "bc"
+- Grouping with parentheses (`()`) - e.g. "(a|b)c" matches "ac" or "bc"
 - Quantifiers:
-  - Zero or more (*) - e.g. "a*" matches "", "a", "aa", etc.
-  - One or more (+) - e.g. "a+" matches "a", "aa", etc.
-  - Zero or one (?) - e.g. "a?" matches "" or "a"
-- Wildcard (.) - matches any single character
-- Character classes ([abc]) - matches any single character in the set
+  - Zero or more (`*`) - e.g. "a*" matches "", "a", "aa", etc.
+  - One or more (`+`) - e.g. "a+" matches "a", "aa", etc.
+  - Zero or one (`?`) - e.g. "a?" matches "" or "a"
+- Wildcard (`.`) - matches any single character
+- Character classes (`[]`) - matches any single character in the set
 
 
 ## TODO
