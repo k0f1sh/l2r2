@@ -394,15 +394,13 @@ fn build_states(states: Vec<State>) -> HashMap<usize, State> {
 }
 
 #[allow(dead_code)]
-pub fn match_nfa(nfa: &NFA, input: &str) -> Result<bool, String> {
-    let result = _match_nfa(
-        nfa,
-        nfa.start_id,
-        &mut InputWithIndex {
-            index: 0,
-            input: input.to_string(),
-        },
-    )?;
+pub fn match_nfa(nfa: &NFA, input_str: &str) -> Result<bool, String> {
+    let mut input = InputWithIndex {
+        index: 0,
+        input: input_str.to_string(),
+        visited: HashSet::new(),
+    };
+    let result = _match_nfa(nfa, nfa.start_id, &mut input)?;
     match result {
         MatchResult::Match => Ok(true),
         MatchResult::NoMatch => Ok(false),
@@ -420,10 +418,18 @@ enum MatchResult {
 struct InputWithIndex {
     index: usize,
     input: String,
+    visited: HashSet<(usize, usize)>,
 }
 
-#[allow(dead_code)]
 impl InputWithIndex {
+    fn new(input: String) -> Self {
+        Self {
+            index: 0,
+            input,
+            visited: HashSet::new(),
+        }
+    }
+
     fn next(&mut self) -> Option<char> {
         let result = self.input.chars().nth(self.index);
         self.index += 1;
@@ -445,6 +451,11 @@ fn _match_nfa(
     current_state_id: usize,
     input: &mut InputWithIndex,
 ) -> Result<MatchResult, String> {
+    if input.visited.contains(&(current_state_id, input.index)) {
+        return Ok(MatchResult::NoMatch);
+    }
+    input.visited.insert((current_state_id, input.index));
+
     if input.is_end() {
         let closure = epsilon_closure(nfa, current_state_id)?;
         for state_id in closure {
@@ -456,22 +467,18 @@ fn _match_nfa(
     }
 
     if let Some(c) = input.peek() {
-        // check transition
         let _next_states = nfa.states.get(&current_state_id).and_then(|state| {
             let mut next_state_ids = HashSet::new();
-            // check literal transition
             if let Some(transitions) = state.transitions.get(&TransitionKey::Literal(c)) {
                 next_state_ids.extend(transitions.iter().cloned());
             }
-            // check any char transition
             if let Some(transitions) = state.transitions.get(&TransitionKey::AnyChar) {
                 next_state_ids.extend(transitions.iter().cloned());
             }
-            // check char class transition
             let mut adapted_char_class_transitions = HashSet::new();
             for transition in state.transitions.iter() {
                 match transition.0 {
-                    TransitionKey::CharClass(chars) => {
+                    TransitionKey::CharClass(ref chars) => {
                         if chars.contains(&c) {
                             adapted_char_class_transitions.extend(transition.1.iter().cloned());
                         }
@@ -483,18 +490,14 @@ fn _match_nfa(
             Some(next_state_ids)
         });
 
-        // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
 
-        // FIXME: This implementation is not ideal and needs refactoring
-        // Currently handling start(^) as one of epsilon transitions
         let start_of_line_states = nfa
             .states
             .get(&current_state_id)
             .and_then(|state| {
                 let mut ids = HashSet::new();
                 if let Some(transitions) = state.transitions.get(&TransitionKey::Start) {
-                    // transition if current position is start
                     if input.index == 0 {
                         ids.extend(transitions.iter().cloned());
                     }
@@ -512,7 +515,6 @@ fn _match_nfa(
         let next_states: HashSet<usize> =
             next_states.union(&start_of_line_states).cloned().collect();
 
-        // (state_id, is_epsilon)
         let next_states = next_states
             .into_iter()
             .map(|state_id| (state_id, closure.contains(&state_id)))
@@ -525,20 +527,18 @@ fn _match_nfa(
 
         for (next_state_id, is_epsilon) in next_states {
             let next_state = nfa.states.get(&next_state_id).unwrap();
-            // check state is accept
+
             if next_state.is_accept {
                 return Ok(MatchResult::Match);
             } else {
-                // if not accept, try next state
                 let current_index = input.index;
                 if !is_epsilon {
                     input.next();
                 }
-                let result = _match_nfa(nfa, next_state_id.clone(), input)?;
+                let result = _match_nfa(nfa, next_state_id, input)?;
                 match result {
                     MatchResult::Match => return Ok(MatchResult::Match),
                     MatchResult::NoMatch => {
-                        // if no match, reset index
                         input.set_index(current_index);
                         continue;
                     }
