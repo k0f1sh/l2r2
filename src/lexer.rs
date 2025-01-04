@@ -38,11 +38,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 tokens.push(Token::Literal(it.peek().unwrap().clone()));
             }
             _ => {
-                if c.is_ascii_alphabetic() || c.is_ascii_digit() {
-                    tokens.push(Token::Literal(c));
-                } else if !c.is_whitespace() {
-                    return Err(format!("Invalid character: {}", c));
-                }
+                tokens.push(Token::Literal(c));
             }
         }
         it.next();
@@ -91,7 +87,13 @@ mod tests {
         );
         assert_eq!(
             lex(" a-z ").unwrap(),
-            vec![Token::Literal('a'), Token::Hyphen, Token::Literal('z')]
+            vec![
+                Token::Literal(' '),
+                Token::Literal('a'),
+                Token::Hyphen,
+                Token::Literal('z'),
+                Token::Literal(' ')
+            ]
         );
         assert_eq!(
             lex("a|b").unwrap(),
