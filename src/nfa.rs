@@ -485,14 +485,32 @@ fn _match_nfa(
 
         // check epsilon transition
         let closure = epsilon_closure(nfa, current_state_id)?;
+
+        // FIXME: This implementation is not ideal and needs refactoring
+        // Currently handling start(^) as one of epsilon transitions
+        let start_of_line_states = nfa
+            .states
+            .get(&current_state_id)
+            .and_then(|state| {
+                let mut ids = HashSet::new();
+                if let Some(transitions) = state.transitions.get(&TransitionKey::Start) {
+                    // transition if current position is start
+                    if input.index == 0 {
+                        ids.extend(transitions.iter().cloned());
+                    }
+                }
+                Some(ids)
+            })
+            .unwrap_or(HashSet::new());
+        let closure = closure.union(&start_of_line_states).cloned().collect();
+
         let next_states: HashSet<usize> = _next_states
             .unwrap_or(HashSet::new())
             .union(&closure)
             .cloned()
             .collect();
-
-        // TODO
-        // check start(^) or end($) (one of epsilon transition)
+        let next_states: HashSet<usize> =
+            next_states.union(&start_of_line_states).cloned().collect();
 
         // (state_id, is_epsilon)
         let next_states = next_states
@@ -897,5 +915,11 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "bd"), Ok(true));
         assert_eq!(match_nfa(&nfa, "cd"), Ok(true));
         assert_eq!(match_nfa(&nfa, "dd"), Ok(false));
+
+        // ^a
+        let nfa = build_nfa(Node::Concat(vec![Node::Start, Node::Literal('a')])).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
     }
 }
