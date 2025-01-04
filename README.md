@@ -40,5 +40,5 @@ Currently supported regex syntax:
 
 - [ ] Optimize the NFA construction
   - remove redundant epsilon transitions
-- [ ] Implement `^` and `$`
+- [x] Implement `^` and `$`
 - [ ] Implement repetition (e.g. `a{2,3}`)
