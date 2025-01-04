@@ -34,12 +34,11 @@ Currently supported regex syntax:
   - Zero or one (`?`) - e.g. "a?" matches "" or "a"
 - Wildcard (`.`) - matches any single character
 - Character classes (`[]`) - matches any single character in the set
-
+- `^` and `$` - matches the start and end of the string
 
 ## TODO
 
 - [ ] Optimize the NFA construction
   - remove redundant epsilon transitions
-- [x] Implement `^` and `$`
 - [ ] Implement repetition (e.g. `a{2,3}`)
 - [ ] Implement character classes (e.g. `\S` `\d` `\w` `\s`)
