@@ -11,6 +11,8 @@ pub enum Token {
     RightParen,    // )
     LeftBracket,   // [
     RightBracket,  // ]
+    Carret,        // ^
+    Dollar,        // $
                    // TODO: Add more tokens
 }
 
@@ -19,6 +21,8 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
     let mut it = input.chars().peekable();
     while let Some(&c) = it.peek() {
         match c {
+            '^' => tokens.push(Token::Carret),
+            '$' => tokens.push(Token::Dollar),
             '*' => tokens.push(Token::Star),
             '+' => tokens.push(Token::Plus),
             '?' => tokens.push(Token::Question),
@@ -95,5 +99,7 @@ mod tests {
         );
         assert_eq!(lex("\\a").unwrap(), vec![Token::Literal('a')]);
         assert_eq!(lex("\\-").unwrap(), vec![Token::Literal('-')]);
+        assert_eq!(lex("^a").unwrap(), vec![Token::Carret, Token::Literal('a')]);
+        assert_eq!(lex("a$").unwrap(), vec![Token::Literal('a'), Token::Dollar]);
     }
 }

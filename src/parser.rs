@@ -13,6 +13,8 @@ pub enum Node {
     ZeroOrOne(Box<Node>),
     Group(Box<Node>),
     Concat(Vec<Node>),
+    Start,
+    End,
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Node, String> {
@@ -41,7 +43,12 @@ fn parse_term(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Node
     let mut nodes = Vec::new();
     while let Some(token) = tokens.peek() {
         match token {
-            Token::Literal(_) | Token::Dot | Token::LeftParen | Token::LeftBracket => {
+            Token::Literal(_)
+            | Token::Dot
+            | Token::LeftParen
+            | Token::LeftBracket
+            | Token::Carret
+            | Token::Dollar => {
                 nodes.push(parse_factor(tokens)?);
             }
             Token::Pipe | Token::RightParen => {
@@ -65,6 +72,8 @@ fn parse_factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<No
     let node = match token {
         Token::Literal(c) => Ok(Node::Literal(c)),
         Token::Dot => Ok(Node::AnyChar),
+        Token::Carret => Ok(Node::Start),
+        Token::Dollar => Ok(Node::End),
         Token::LeftParen => {
             let expr = parse_expr(tokens)?;
             if let Some(Token::RightParen) = tokens.next() {
@@ -256,6 +265,14 @@ mod tests {
         assert_eq!(
             parse(lex("[(a-c)]").unwrap()),
             Err("Unexpected token: LeftParen".to_string())
+        );
+        assert_eq!(
+            parse(lex("^a").unwrap()),
+            Ok(Node::Concat(vec![Node::Start, Node::Literal('a')]))
+        );
+        assert_eq!(
+            parse(lex("a$").unwrap()),
+            Ok(Node::Concat(vec![Node::Literal('a'), Node::End]))
         );
     }
 }

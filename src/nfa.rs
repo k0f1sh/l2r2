@@ -8,6 +8,8 @@ pub enum TransitionKey {
     Literal(char),
     CharClass(Vec<char>),
     AnyChar,
+    Start,
+    End,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +117,8 @@ fn _build_nfa(
         Node::Group(node) => build_group(id_generator, &mut start, node)?,
         Node::AnyChar => build_any_char(id_generator, &mut start)?,
         Node::CharClass(chars) => build_char_class(id_generator, &mut start, chars)?,
+        Node::Start => build_start(id_generator, &mut start)?,
+        Node::End => build_end(id_generator, &mut start)?,
     };
 
     let start_id = start.id;
@@ -344,6 +348,30 @@ fn build_any_char(
     Ok((vec![q0], q0_id, q0_id))
 }
 
+fn build_start(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let q0 = generate_state(id_generator, true);
+    let q0_id = q0.id;
+
+    start.add_transition(TransitionKey::Start, q0_id);
+
+    Ok((vec![q0], q0_id, q0_id))
+}
+
+fn build_end(
+    id_generator: &mut IDGenerator,
+    start: &mut State,
+) -> Result<(Vec<State>, usize, usize), String> {
+    let q0 = generate_state(id_generator, true);
+    let q0_id = q0.id;
+
+    start.add_transition(TransitionKey::End, q0_id);
+
+    Ok((vec![q0], q0_id, q0_id))
+}
+
 fn build_char_class(
     id_generator: &mut IDGenerator,
     start: &mut State,
@@ -463,6 +491,9 @@ fn _match_nfa(
             .cloned()
             .collect();
 
+        // TODO
+        // check start(^) or end($) (one of epsilon transition)
+
         // (state_id, is_epsilon)
         let next_states = next_states
             .into_iter()
@@ -569,6 +600,8 @@ impl NFA {
                             TransitionKey::CharClass(chars) =>
                                 format!("[{}]", chars.iter().collect::<String>()),
                             TransitionKey::AnyChar => "AnyChar".to_string(),
+                            TransitionKey::Start => "^".to_string(),
+                            TransitionKey::End => "$".to_string(),
                         }
                     ));
                 }
