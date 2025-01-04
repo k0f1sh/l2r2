@@ -32,7 +32,7 @@ fn main() {
                 let matched = result.unwrap();
                 if matched {
                     println!("{}", input);
-                    break;
+                    continue;
                 }
             }
             Err(e) => {
