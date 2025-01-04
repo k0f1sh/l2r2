@@ -458,7 +458,30 @@ fn _match_nfa(
 
     if input.is_end() {
         let closure = epsilon_closure(nfa, current_state_id)?;
+
         for state_id in closure {
+            // end of line
+            let end_of_line_states = nfa
+                .states
+                .get(&state_id)
+                .and_then(|state| {
+                    let mut ids = HashSet::new();
+                    if let Some(transitions) = state.transitions.get(&TransitionKey::End) {
+                        ids.extend(transitions.iter().cloned());
+                    }
+                    Some(ids)
+                })
+                .unwrap_or(HashSet::new());
+
+            for end_of_line_state_id in end_of_line_states {
+                let state = nfa.states.get(&end_of_line_state_id).unwrap();
+                if state.is_accept {
+                    return Ok(MatchResult::Match);
+                } else {
+                    break;
+                }
+            }
+
             if nfa.states.get(&state_id).unwrap().is_accept {
                 return Ok(MatchResult::Match);
             }
@@ -918,6 +941,23 @@ mod tests {
 
         // ^a
         let nfa = build_nfa(Node::Concat(vec![Node::Start, Node::Literal('a')])).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
+
+        // a$
+        let nfa = build_nfa(Node::Concat(vec![Node::Literal('a'), Node::End])).unwrap();
+        assert_eq!(match_nfa(&nfa, "a"), Ok(true));
+        assert_eq!(match_nfa(&nfa, "ba"), Ok(true));
+        assert_eq!(match_nfa(&nfa, ""), Ok(false));
+
+        // ^a$
+        let nfa = build_nfa(Node::Concat(vec![
+            Node::Start,
+            Node::Literal('a'),
+            Node::End,
+        ]))
+        .unwrap();
         assert_eq!(match_nfa(&nfa, "a"), Ok(true));
         assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
         assert_eq!(match_nfa(&nfa, ""), Ok(false));
