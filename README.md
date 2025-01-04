@@ -42,3 +42,4 @@ Currently supported regex syntax:
   - remove redundant epsilon transitions
 - [x] Implement `^` and `$`
 - [ ] Implement repetition (e.g. `a{2,3}`)
+- [ ] Implement character classes (e.g. `\S` `\d` `\w` `\s`)
