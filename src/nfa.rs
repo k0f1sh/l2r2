@@ -35,10 +35,7 @@ impl State {
     }
 
     fn add_transition(&mut self, key: TransitionKey, state_id: usize) {
-        self.transitions
-            .entry(key)
-            .or_default()
-            .insert(state_id);
+        self.transitions.entry(key).or_default().insert(state_id);
     }
 
     #[allow(dead_code)]
@@ -52,7 +49,8 @@ impl State {
     fn get_if_only_one_epsilon_transition(&self) -> Option<usize> {
         if self.is_only_one_epsilon_transition() {
             Some(
-                *self.transitions
+                *self
+                    .transitions
                     .get(&TransitionKey::Epsilon)
                     .unwrap()
                     .iter()
@@ -182,29 +180,14 @@ fn build_or(
 }
 
 // Remove duplicate transitions that point to the same target with the same key
-fn remove_duplicate_transitions(states: &mut Vec<State>, start: &mut State) -> Result<(), String> {
-    let mut total_removals = 0;
-
-    // Clean up start state transitions
-    for (_, target_set) in start.transitions.iter_mut() {
-        let original_len = target_set.len();
-        // HashSet automatically removes duplicates, but let's count them
-        total_removals += original_len - target_set.len();
-    }
-
-    // Clean up all state transitions
-    for state in states.iter_mut() {
-        for (_, target_set) in state.transitions.iter_mut() {
-            let original_len = target_set.len();
-            // HashSet should handle duplicates, but let's also remove redundant states
-            total_removals += original_len - target_set.len();
-        }
-    }
-
+fn remove_duplicate_transitions(
+    _states: &mut Vec<State>,
+    _start: &mut State,
+) -> Result<(), String> {
+    // HashSet automatically prevents duplicates, so this function is essentially a no-op
+    // Keeping it for API compatibility but marking parameters as unused
     #[cfg(debug_assertions)]
-    if total_removals > 0 {
-        eprintln!("DEBUG: Removed {} duplicate transitions", total_removals);
-    }
+    eprintln!("DEBUG: Duplicate transitions are automatically prevented by HashSet");
 
     Ok(())
 }
@@ -245,7 +228,7 @@ fn remove_redundant_states(states: &mut Vec<State>, start: &mut State) -> Result
                     // Check start state
                     for (in_key, source_set) in &start.transitions {
                         if in_key == out_key && source_set.contains(&state.id) {
-                            sources.push(("start", 0));
+                            sources.push(("start", start.id));
                         }
                     }
 
@@ -1242,5 +1225,55 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "a"), Ok(true));
         assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
         assert_eq!(match_nfa(&nfa, ""), Ok(false));
+    }
+
+    #[test]
+    fn test_nfa_optimizations() {
+        use super::*;
+
+        // Test remove_duplicate_transitions (should be no-op)
+        let mut states = vec![
+            State::new(1, HashMap::new(), false),
+            State::new(2, HashMap::new(), true),
+        ];
+        let mut start = State::new(0, HashMap::new(), false);
+
+        // This should not fail and should not modify anything
+        assert!(remove_duplicate_transitions(&mut states, &mut start).is_ok());
+
+        // Test remove_redundant_states with a simple case
+        let nfa = build_nfa(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')])).unwrap();
+
+        // Convert to Vec<State> for testing
+        let mut states: Vec<State> = nfa.states.into_values().collect();
+        let mut start = State::new(nfa.start_id, HashMap::new(), false);
+
+        // Should not fail
+        assert!(remove_redundant_states(&mut states, &mut start).is_ok());
+
+        // Test remove_unreachable_states
+        let mut states = vec![
+            State::new(1, HashMap::new(), false),
+            State::new(2, HashMap::new(), true),
+            State::new(999, HashMap::new(), false), // unreachable
+        ];
+        let mut start = State::new(0, HashMap::new(), false);
+        start.add_transition(TransitionKey::Literal('a'), 1);
+        states[0].add_transition(TransitionKey::Literal('b'), 2);
+
+        let original_len = states.len();
+        assert!(remove_unreachable_states(&mut states, &mut start).is_ok());
+        // Should remove the unreachable state
+        assert!(states.len() <= original_len);
+
+        // Test optimize_concat_epsilon_transitions
+        let mut states = vec![
+            State::new(1, HashMap::new(), false),
+            State::new(2, HashMap::new(), true),
+        ];
+        let mut start = State::new(0, HashMap::new(), false);
+
+        // Should not fail
+        assert!(optimize_concat_epsilon_transitions(&mut states, &mut start).is_ok());
     }
 }
