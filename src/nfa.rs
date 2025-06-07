@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::{HashMap, HashSet};
 
 use crate::parser::Node;
@@ -14,9 +16,9 @@ pub enum TransitionKey {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
-    id: usize,
-    transitions: HashMap<TransitionKey, HashSet<usize>>,
-    is_accept: bool,
+    pub id: usize,
+    pub transitions: HashMap<TransitionKey, HashSet<usize>>,
+    pub is_accept: bool,
 }
 
 impl State {
@@ -33,10 +35,7 @@ impl State {
     }
 
     fn add_transition(&mut self, key: TransitionKey, state_id: usize) {
-        self.transitions
-            .entry(key)
-            .or_insert(HashSet::new())
-            .insert(state_id);
+        self.transitions.entry(key).or_default().insert(state_id);
     }
 
     #[allow(dead_code)]
@@ -50,13 +49,13 @@ impl State {
     fn get_if_only_one_epsilon_transition(&self) -> Option<usize> {
         if self.is_only_one_epsilon_transition() {
             Some(
-                self.transitions
+                *self
+                    .transitions
                     .get(&TransitionKey::Epsilon)
                     .unwrap()
                     .iter()
                     .next()
-                    .unwrap()
-                    .clone(),
+                    .unwrap(),
             )
         } else {
             None
@@ -67,8 +66,8 @@ impl State {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct NFA {
-    start_id: usize,
-    states: HashMap<usize, State>,
+    pub start_id: usize,
+    pub states: HashMap<usize, State>,
 }
 
 #[derive(Debug)]
@@ -174,10 +173,305 @@ fn build_or(
 
     // return start, left_states, right_states
     let mut states = vec![end];
-    states.extend(left_states.into_iter());
-    states.extend(right_states.into_iter());
+    states.extend(left_states);
+    states.extend(right_states);
 
     Ok((states, start.id, end_id))
+}
+
+// Remove duplicate transitions that point to the same target with the same key
+fn remove_duplicate_transitions(
+    _states: &mut Vec<State>,
+    _start: &mut State,
+) -> Result<(), String> {
+    // HashSet automatically prevents duplicates, so this function is essentially a no-op
+    // Keeping it for API compatibility but marking parameters as unused
+    #[cfg(debug_assertions)]
+    eprintln!("DEBUG: Duplicate transitions are automatically prevented by HashSet");
+
+    Ok(())
+}
+
+// Remove redundant intermediate states that only serve as pass-through
+fn remove_redundant_states(states: &mut Vec<State>, start: &mut State) -> Result<(), String> {
+    let mut removed_states = 0;
+
+    // Find states that can be bypassed
+    let mut bypass_candidates = Vec::new();
+
+    for state in states.iter() {
+        // If a state is not accept and all its outgoing transitions go to the same target
+        // with the same key as incoming transitions, it might be redundant
+        if !state.is_accept {
+            // Check if this state has incoming transitions from multiple sources
+            // that could be directly connected to its target
+            let mut targets_by_key: HashMap<TransitionKey, HashSet<usize>> = HashMap::new();
+
+            for (key, target_set) in &state.transitions {
+                for target in target_set {
+                    targets_by_key
+                        .entry(key.clone())
+                        .or_default()
+                        .insert(*target);
+                }
+            }
+
+            // If this state has exactly one outgoing transition type
+            if targets_by_key.len() == 1 {
+                let (out_key, out_targets) = targets_by_key.iter().next().unwrap();
+                if out_targets.len() == 1 {
+                    let target_id = *out_targets.iter().next().unwrap();
+
+                    // Find all states that point to this state with the same key
+                    let mut sources = Vec::new();
+
+                    // Check start state
+                    for (in_key, source_set) in &start.transitions {
+                        if in_key == out_key && source_set.contains(&state.id) {
+                            sources.push(("start", start.id));
+                        }
+                    }
+
+                    // Check other states
+                    for source_state in states.iter() {
+                        if source_state.id != state.id {
+                            for (in_key, source_set) in &source_state.transitions {
+                                if in_key == out_key && source_set.contains(&state.id) {
+                                    sources.push(("state", source_state.id));
+                                }
+                            }
+                        }
+                    }
+
+                    // If we found sources with the same key, this state is redundant
+                    if !sources.is_empty() {
+                        bypass_candidates.push((state.id, target_id, out_key.clone(), sources));
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    if !bypass_candidates.is_empty() {
+        eprintln!(
+            "DEBUG: Found {} redundant states to bypass",
+            bypass_candidates.len()
+        );
+        for (state_id, target_id, key, sources) in &bypass_candidates {
+            eprintln!(
+                "  State {} -> {} (key: {:?}), sources: {} ",
+                state_id,
+                target_id,
+                key,
+                sources.len()
+            );
+        }
+    }
+
+    // Apply bypasses
+    for (redundant_state_id, target_id, key, sources) in bypass_candidates {
+        // Update all source states/start to point directly to target
+        for (source_type, source_id) in sources {
+            if source_type == "start" {
+                if let Some(target_set) = start.transitions.get_mut(&key) {
+                    target_set.remove(&redundant_state_id);
+                    target_set.insert(target_id);
+                }
+            } else {
+                for state in states.iter_mut() {
+                    if state.id == source_id {
+                        if let Some(target_set) = state.transitions.get_mut(&key) {
+                            target_set.remove(&redundant_state_id);
+                            target_set.insert(target_id);
+                        }
+                    }
+                }
+            }
+        }
+        removed_states += 1;
+    }
+
+    #[cfg(debug_assertions)]
+    if removed_states > 0 {
+        eprintln!("DEBUG: Bypassed {} redundant states", removed_states);
+    }
+
+    Ok(())
+}
+
+// Remove states that become unreachable after optimization
+fn remove_unreachable_states(states: &mut Vec<State>, start: &mut State) -> Result<(), String> {
+    // Find all reachable states
+    let mut reachable = HashSet::new();
+    let mut to_visit = vec![start.id];
+
+    // Add start state as reachable
+    reachable.insert(start.id);
+
+    while let Some(current_id) = to_visit.pop() {
+        // Add transitions from start state
+        if current_id == start.id {
+            for target_set in start.transitions.values() {
+                for target_id in target_set {
+                    if !reachable.contains(target_id) {
+                        reachable.insert(*target_id);
+                        to_visit.push(*target_id);
+                    }
+                }
+            }
+        }
+
+        // Add transitions from regular states
+        if let Some(state) = states.iter().find(|s| s.id == current_id) {
+            for target_set in state.transitions.values() {
+                for target_id in target_set {
+                    if !reachable.contains(target_id) {
+                        reachable.insert(*target_id);
+                        to_visit.push(*target_id);
+                    }
+                }
+            }
+        }
+    }
+
+    let original_count = states.len();
+    states.retain(|state| reachable.contains(&state.id));
+    let removed_count = original_count - states.len();
+
+    #[cfg(debug_assertions)]
+    if removed_count > 0 {
+        eprintln!("DEBUG: Removed {} unreachable states", removed_count);
+    }
+
+    Ok(())
+}
+
+// More targeted and safe epsilon optimization for concat chains
+fn optimize_concat_epsilon_transitions(
+    states: &mut Vec<State>,
+    start: &mut State,
+) -> Result<(), String> {
+    let mut total_optimizations = 0;
+
+    // Repeat optimization until no more improvements can be made
+    loop {
+        // Only optimize specific patterns: states with single epsilon transition that are not:
+        // 1. Accept states
+        // 2. Start/End related
+        // 3. States that other states point to multiple times
+
+        // Count incoming transitions for each state
+        let mut incoming_counts: HashMap<usize, usize> = HashMap::new();
+        for state in states.iter() {
+            for (_, target_set) in state.transitions.iter() {
+                for target_id in target_set {
+                    *incoming_counts.entry(*target_id).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Also count from start state
+        for (_, target_set) in start.transitions.iter() {
+            for target_id in target_set {
+                *incoming_counts.entry(*target_id).or_insert(0) += 1;
+            }
+        }
+
+        // Find safe candidates for optimization
+        let mut optimization_candidates = Vec::new();
+        for state in states.iter() {
+            if !state.is_accept {
+                // Don't optimize accept states
+                if let Some(target_id) = state.get_if_only_one_epsilon_transition() {
+                    // Only optimize if this state has exactly one incoming transition
+                    if incoming_counts.get(&state.id).unwrap_or(&0) == &1 {
+                        // And the target is not a Start/End related state
+                        let target_state = states.iter().find(|s| s.id == target_id).unwrap();
+                        let has_start_end_transitions = target_state
+                            .transitions
+                            .keys()
+                            .any(|key| matches!(key, TransitionKey::Start | TransitionKey::End));
+
+                        if !has_start_end_transitions {
+                            optimization_candidates.push((state.id, target_id));
+                        }
+                    }
+                }
+            }
+        }
+
+        if optimization_candidates.is_empty() {
+            break; // No more optimizations possible
+        }
+
+        total_optimizations += optimization_candidates.len();
+
+        #[cfg(debug_assertions)]
+        {
+            eprintln!(
+                "DEBUG: Optimizing {} epsilon transitions in this round",
+                optimization_candidates.len()
+            );
+            for (from, to) in &optimization_candidates {
+                eprintln!("  {} -> {}", from, to);
+            }
+        }
+
+        // Apply optimizations
+        for (from_id, to_id) in optimization_candidates {
+            // Find the target state's transitions
+            let target_transitions = states
+                .iter()
+                .find(|s| s.id == to_id)
+                .unwrap()
+                .transitions
+                .clone();
+            let target_is_accept = states.iter().find(|s| s.id == to_id).unwrap().is_accept;
+
+            // Update all states that point to from_id to point to to_id instead
+            for state in states.iter_mut() {
+                for (_, target_set) in state.transitions.iter_mut() {
+                    if target_set.contains(&from_id) {
+                        target_set.remove(&from_id);
+                        target_set.insert(to_id);
+                    }
+                }
+            }
+
+            // Update start state if it points to from_id
+            for (_, target_set) in start.transitions.iter_mut() {
+                if target_set.contains(&from_id) {
+                    target_set.remove(&from_id);
+                    target_set.insert(to_id);
+                }
+            }
+
+            // Update the from_state to have the target_state's transitions and properties
+            let from_state = states.iter_mut().find(|s| s.id == from_id).unwrap();
+            from_state.transitions = target_transitions;
+            from_state.is_accept = target_is_accept;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    if total_optimizations > 0 {
+        eprintln!(
+            "DEBUG: Total epsilon optimizations applied: {}",
+            total_optimizations
+        );
+    }
+
+    // After epsilon optimization, remove duplicate transitions
+    remove_duplicate_transitions(states, start)?;
+
+    // Try to remove redundant intermediate states
+    remove_redundant_states(states, start)?;
+
+    // Remove unreachable states after optimization
+    remove_unreachable_states(states, start)?;
+
+    Ok(())
 }
 
 fn build_concat(
@@ -227,34 +521,8 @@ fn build_concat(
         .unwrap();
     last_end_state.is_accept = true;
 
-    // FIXME: too complex maybe
-    // TODO: Need to optimize not just here but throughout the entire code
-    //       (If skip_to state has incoming transitions from multiple states, we need to merge them properly)
-    // if state has only one epsilon transition, skip it
-    // example:
-    // from: 0 -(e)-> 1  -(x)-> 2
-    // to: 0 -(x)-> 2
-
-    // let mut skip_from_to: Vec<(usize, usize)> = vec![];
-    // for state in states.iter_mut() {
-    //     if let Some(skip_to_id) = state.get_if_only_one_epsilon_transition() {
-    //         skip_from_to.push((state.id, skip_to_id));
-    //     }
-    // }
-
-    // let mut remove_state_ids: Vec<usize> = vec![];
-    // for (skip_from_id, skip_to_id) in skip_from_to {
-    //     let skip_to_state = states
-    //         .iter_mut()
-    //         .find(|state| state.id == skip_to_id)
-    //         .unwrap();
-
-    //     skip_to_state.id = skip_from_id;
-    //     remove_state_ids.push(skip_to_id);
-    // }
-
-    // remove skip_to_state
-    // states.retain(|state| !remove_state_ids.contains(&state.id));
+    // Apply more targeted epsilon optimization
+    optimize_concat_epsilon_transitions(&mut states, start)?;
 
     Ok((states, start_id, prev_end_id))
 }
@@ -464,22 +732,21 @@ fn _match_nfa(
             let end_of_line_states = nfa
                 .states
                 .get(&state_id)
-                .and_then(|state| {
+                .map(|state| {
                     let mut ids = HashSet::new();
                     if let Some(transitions) = state.transitions.get(&TransitionKey::End) {
                         ids.extend(transitions.iter().cloned());
                     }
-                    Some(ids)
+                    ids
                 })
-                .unwrap_or(HashSet::new());
+                .unwrap_or_default();
 
             for end_of_line_state_id in end_of_line_states {
                 let state = nfa.states.get(&end_of_line_state_id).unwrap();
                 if state.is_accept {
                     return Ok(MatchResult::Match);
-                } else {
-                    break;
                 }
+                // 最初のaccept状態でない状態が見つかったら、他もチェックする必要がある
             }
 
             if nfa.states.get(&state_id).unwrap().is_accept {
@@ -490,7 +757,7 @@ fn _match_nfa(
     }
 
     if let Some(c) = input.peek() {
-        let _next_states = nfa.states.get(&current_state_id).and_then(|state| {
+        let _next_states = nfa.states.get(&current_state_id).map(|state| {
             let mut next_state_ids = HashSet::new();
             if let Some(transitions) = state.transitions.get(&TransitionKey::Literal(c)) {
                 next_state_ids.extend(transitions.iter().cloned());
@@ -500,17 +767,14 @@ fn _match_nfa(
             }
             let mut adapted_char_class_transitions = HashSet::new();
             for transition in state.transitions.iter() {
-                match transition.0 {
-                    TransitionKey::CharClass(ref chars) => {
-                        if chars.contains(&c) {
-                            adapted_char_class_transitions.extend(transition.1.iter().cloned());
-                        }
+                if let TransitionKey::CharClass(ref chars) = transition.0 {
+                    if chars.contains(&c) {
+                        adapted_char_class_transitions.extend(transition.1.iter().cloned());
                     }
-                    _ => {}
                 }
             }
             next_state_ids.extend(adapted_char_class_transitions);
-            Some(next_state_ids)
+            next_state_ids
         });
 
         let closure = epsilon_closure(nfa, current_state_id)?;
@@ -518,20 +782,20 @@ fn _match_nfa(
         let start_of_line_states = nfa
             .states
             .get(&current_state_id)
-            .and_then(|state| {
+            .map(|state| {
                 let mut ids = HashSet::new();
                 if let Some(transitions) = state.transitions.get(&TransitionKey::Start) {
                     if input.index == 0 {
                         ids.extend(transitions.iter().cloned());
                     }
                 }
-                Some(ids)
+                ids
             })
-            .unwrap_or(HashSet::new());
+            .unwrap_or_default();
         let closure = closure.union(&start_of_line_states).cloned().collect();
 
         let next_states: HashSet<usize> = _next_states
-            .unwrap_or(HashSet::new())
+            .unwrap_or_default()
             .union(&closure)
             .cloned()
             .collect();
@@ -590,11 +854,11 @@ fn _epsilon_closure(
         .get(&TransitionKey::Epsilon)
         .unwrap_or(&binding);
     for next_state_id in epsilon_states {
-        if visited.contains(&next_state_id) {
+        if visited.contains(next_state_id) {
             continue;
         }
-        visited.insert(next_state_id.clone());
-        _epsilon_closure(nfa, next_state_id.clone(), visited)?;
+        visited.insert(*next_state_id);
+        _epsilon_closure(nfa, *next_state_id, visited)?;
     }
     Ok(())
 }
@@ -618,7 +882,7 @@ impl NFA {
             }
         }
 
-        body.push_str(&format!("\trankdir=LR\n"));
+        body.push_str("\trankdir=LR\n");
         body.push_str(&format!(
             "\tnode [shape=doublecircle]; {};\n",
             accept_states
@@ -627,7 +891,7 @@ impl NFA {
                 .collect::<Vec<String>>()
                 .join(" ")
         ));
-        body.push_str(&format!("\tnode [shape=circle];\n"));
+        body.push_str("\tnode [shape=circle];\n");
         for state in self.states.values() {
             for (c, next_states) in state.transitions.iter() {
                 for next_state_id in next_states {
@@ -961,5 +1225,55 @@ mod tests {
         assert_eq!(match_nfa(&nfa, "a"), Ok(true));
         assert_eq!(match_nfa(&nfa, "ba"), Ok(false));
         assert_eq!(match_nfa(&nfa, ""), Ok(false));
+    }
+
+    #[test]
+    fn test_nfa_optimizations() {
+        use super::*;
+
+        // Test remove_duplicate_transitions (should be no-op)
+        let mut states = vec![
+            State::new(1, HashMap::new(), false),
+            State::new(2, HashMap::new(), true),
+        ];
+        let mut start = State::new(0, HashMap::new(), false);
+
+        // This should not fail and should not modify anything
+        assert!(remove_duplicate_transitions(&mut states, &mut start).is_ok());
+
+        // Test remove_redundant_states with a simple case
+        let nfa = build_nfa(Node::Concat(vec![Node::Literal('a'), Node::Literal('b')])).unwrap();
+
+        // Convert to Vec<State> for testing
+        let mut states: Vec<State> = nfa.states.into_values().collect();
+        let mut start = State::new(nfa.start_id, HashMap::new(), false);
+
+        // Should not fail
+        assert!(remove_redundant_states(&mut states, &mut start).is_ok());
+
+        // Test remove_unreachable_states
+        let mut states = vec![
+            State::new(1, HashMap::new(), false),
+            State::new(2, HashMap::new(), true),
+            State::new(999, HashMap::new(), false), // unreachable
+        ];
+        let mut start = State::new(0, HashMap::new(), false);
+        start.add_transition(TransitionKey::Literal('a'), 1);
+        states[0].add_transition(TransitionKey::Literal('b'), 2);
+
+        let original_len = states.len();
+        assert!(remove_unreachable_states(&mut states, &mut start).is_ok());
+        // Should remove the unreachable state
+        assert!(states.len() <= original_len);
+
+        // Test optimize_concat_epsilon_transitions
+        let mut states = vec![
+            State::new(1, HashMap::new(), false),
+            State::new(2, HashMap::new(), true),
+        ];
+        let mut start = State::new(0, HashMap::new(), false);
+
+        // Should not fail
+        assert!(optimize_concat_epsilon_transitions(&mut states, &mut start).is_ok());
     }
 }

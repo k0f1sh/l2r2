@@ -79,7 +79,7 @@ fn parse_factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<No
             if let Some(Token::RightParen) = tokens.next() {
                 Ok(Node::Group(Box::new(expr)))
             } else {
-                Err(format!("Unclosed group"))
+                Err("Unclosed group".to_string())
             }
         }
         Token::LeftBracket => {
@@ -89,7 +89,7 @@ fn parse_factor(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<No
         _ => Err(format!("Unexpected token: {:?}", token)),
     }?;
 
-    if let Some(_) = tokens.peek() {
+    if tokens.peek().is_some() {
         parse_repetition(tokens, node)
     } else {
         Ok(node)
@@ -126,7 +126,7 @@ fn parse_char_class(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Resul
             Token::Literal(c) => chars.push(c),
             Token::Hyphen => {
                 if chars.is_empty() {
-                    return Err(format!("Hyphen at the beginning of char class"));
+                    return Err("Hyphen at the beginning of char class".to_string());
                 }
                 let next_token = tokens.next();
                 if next_token.is_some() {
@@ -134,7 +134,7 @@ fn parse_char_class(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Resul
                         let first = chars.pop().unwrap();
                         let last = char;
                         if first > last {
-                            return Err(format!("invalid char class"));
+                            return Err("invalid char class".to_string());
                         }
                         for c in first..=last {
                             chars.push(c);
@@ -143,10 +143,10 @@ fn parse_char_class(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Resul
 
                     // e.g. [a-z-]
                     if let Some(Token::Hyphen) = tokens.peek() {
-                        return Err(format!("invalid char class"));
+                        return Err("invalid char class".to_string());
                     }
                 } else {
-                    return Err(format!("invalid char class"));
+                    return Err("invalid char class".to_string());
                 }
             }
             Token::RightBracket => {

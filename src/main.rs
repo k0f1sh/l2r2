@@ -1,3 +1,4 @@
+mod dfa;
 mod lexer;
 mod nfa;
 mod parser;
