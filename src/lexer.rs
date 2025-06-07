@@ -35,7 +35,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             ']' => tokens.push(Token::RightBracket),
             '\\' => {
                 it.next().unwrap();
-                tokens.push(Token::Literal(it.peek().unwrap().clone()));
+                tokens.push(Token::Literal(*it.peek().unwrap()));
             }
             _ => {
                 tokens.push(Token::Literal(c));

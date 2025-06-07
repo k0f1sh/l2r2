@@ -1,0 +1,21 @@
+{
+    // Editor defaults
+    "files.eol": "\n",
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+
+    // Rust-specific settings
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true
+    },
+    "rust-analyzer.cargo.autoreload": true,
+    "rust-analyzer.checkOnSave.command": "clippy",
+    "rust-analyzer.inlayHints.enable": true,
+    "rust-analyzer.inlayHints.typeHints": {
+        "enable": true
+    }
+}

@@ -14,3 +14,11 @@ path = "src/main.rs"
 [[bin]]
 name = "dot"
 path = "src/dot.rs"
+
+[[bin]]
+name = "dfa_grep"
+path = "src/dfa_grep.rs"
+
+[[bin]]
+name = "dfa_dot"
+path = "src/dfa_dot.rs"
